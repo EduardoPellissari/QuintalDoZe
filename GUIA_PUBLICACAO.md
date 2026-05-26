@@ -18,15 +18,20 @@ git push -u origin main
 
 ## 3) Deploy no Render
 1. Entre em https://dashboard.render.com/
-2. Clique em **New** -> **Blueprint** (ou **Web Service**).
+2. Clique em **New** -> **Blueprint**.
 3. Conecte sua conta GitHub e escolha o repositório.
-4. Se usar Blueprint, o arquivo `render.yaml` já configura build/start automaticamente.
+4. O arquivo `render.yaml` já configura automaticamente:
+   - serviço web
+   - banco Postgres
+   - variável `DATABASE_URL` ligada ao banco
 5. Clique em **Deploy**.
+6. No menu do Blueprint, sempre que fizer mudanças no código, use **Manual sync**.
 
 ## 4) Link público
 Após o deploy, o Render gera uma URL `https://...onrender.com`.
 
 ## Observações importantes
-- Este projeto grava dados em `data/db.json`.
+- Sem `DATABASE_URL`, o sistema usa arquivo local `data/db.json`.
+- Com `DATABASE_URL` (Render Blueprint), os dados ficam no Postgres.
 - Em plano free, o serviço pode dormir quando ficar sem acesso por alguns minutos.
-- Se quiser manter dados em produção sem perda, depois vale migrar para um banco externo.
+- O banco Postgres free do Render expira após 30 dias, então para uso contínuo é recomendado plano pago.
