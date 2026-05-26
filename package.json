@@ -1,0 +1,13 @@
+{
+  "name": "quintal-do-ze-sistema-local-pro",
+  "version": "1.0.0",
+  "description": "Sistema local para restaurante Quintal do Zé",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "4.18.3",
+    "cors": "2.8.5"
+  }
+}

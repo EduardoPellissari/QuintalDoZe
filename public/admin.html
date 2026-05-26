@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin | Quintal do Zé</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="logo-row">
+        <img src="/assets/logo.jpg" alt="Logo Quintal do Zé">
+        <div><strong>Quintal do Zé</strong><small id="areaSmall">Sistema local</small></div>
+      </div>
+      <nav id="sideNav"></nav>
+      <button type="button" id="logout" class="ghost">Sair</button>
+    </aside>
+    <main>
+      <header class="topbar">
+        <div><h2 id="pageTitle"></h2><p id="pageSub"></p></div>
+        <div class="user-pill"><span class="dot"></span><div><b id="userName"></b><small id="userRole"></small></div></div>
+      </header>
+      <section id="content"></section>
+    </main>
+  </div>
+  <div id="toast"></div>
+  <script src="/js/textos.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

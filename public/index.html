@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quintal do Zé | Login</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<div class="dev-footer">
+  Desenvolvido por <b>Eduardo</b>
+</div>
+<body class="login-modern-body">
+  <div class="login-bg"></div>
+
+  <main class="login-modern-screen">
+    <section class="login-modern-card">
+      <div class="login-brand-area">
+        <img src="/assets/logo.jpg" alt="Logo Quintal do Zé">
+        <span id="loginSystemName">Sistema De Pedidos</span>
+        <h1 id="loginBrandName">Quintal do Zé</h1>
+        <p id="loginBrandText"></p>
+      </div>
+
+      <div class="login-right">
+        <form id="loginForm" class="login-modern-form">
+          <h2 id="loginTitle">Entrar no sistema</h2>
+          <p id="loginSubtitle" class="muted">Use seu perfil para acessar somente a área liberada.</p>
+
+          <label>
+            <span id="loginEmailLabel">E-mail</span>
+            <input id="loginEmail" type="email" autocomplete="username" value="admin@quintaldoze.local">
+          </label>
+
+          <label>
+            <span id="loginPasswordLabel">Senha</span>
+            <input id="loginPassword" type="password" autocomplete="current-password" value="123456">
+          </label>
+
+          <button id="loginButton" class="login-modern-button" type="submit">Entrar</button>
+          <p id="loginMsg" class="error"></p>
+        </form>
+
+        <div class="login-modern-help">
+          <b id="loginAccessTitle">O quintal mais brasileiro que existe!</b>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/textos.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/login.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+ALTERAÇÕES APLICADAS
+
+1. Cozinha com pagamento separado do preparo
+- Pedido pago continua aparecendo na cozinha enquanto ainda estiver em preparo/pronto.
+- Pagamento usa o campo paid=true e não altera mais o status operacional da cozinha.
+
+2. Prioridade automática e contador
+- Pedidos continuam ordenados por prioridade/tempo.
+- Contador ao vivo mantido nos cards da cozinha.
+- Alertas visuais e sonoros mantidos.
+
+3. Controle diário da cozinha
+- A cozinha agora mostra somente pedidos do dia atual.
+- No dia seguinte, pedidos antigos não aparecem mais na tela da cozinha.
+- O histórico continua salvo para relatórios.
+
+4. Botão Encerrar dia
+- Foi adicionado o botão “Encerrar dia” na cozinha.
+- Ele remove da tela da cozinha os pedidos ativos do dia, marcando como entregue.
+- Os pedidos não são apagados e continuam no caixa/relatórios.

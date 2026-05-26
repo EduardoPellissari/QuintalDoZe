@@ -1,0 +1,9 @@
+{
+  "name": "Quintal do Zé Local",
+  "short_name": "Quintal do Zé",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#f6c400",
+  "icons": [{ "src": "/assets/logo.jpg", "sizes": "192x192", "type": "image/jpeg" }]
+}
