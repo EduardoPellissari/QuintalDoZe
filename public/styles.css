@@ -334,7 +334,7 @@ nav a.active,
 nav a:hover {
   background:transparent;
   color:var(--gold);
-  border-color:#ffffff
+  border-color:#717171
 }
 
 .ghost,
