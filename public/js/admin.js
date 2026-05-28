@@ -49,7 +49,7 @@ async function renderUsers() {
     <section class="dashboard-cards">
       <div class="dash-card"><b>${users.length}</b><span>${txt('admin.usuarios.cardUsuarios', 'Usuários cadastrados')}</span></div>
       <div class="dash-card"><b>4</b><span>${txt('admin.usuarios.cardPerfis', 'Perfis do sistema')}</span></div>
-      <div class="dash-card"><b>ON</b><span>${txt('admin.usuarios.cardServidor', 'Servidor local')}</span></div>
+      <div class="dash-card"><b>ON</b><span>${txt('admin.usuarios.cardServidor', 'Servidor')}</span></div>
     </section>
 
     <div class="admin-layout admin-users">
