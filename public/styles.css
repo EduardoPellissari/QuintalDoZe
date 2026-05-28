@@ -1729,7 +1729,7 @@ textarea {
 }
 
 .dev-footer b {
-  color: var(--gold);
+  color: var(--navy);
 }
 
 .dev-sidebar {
@@ -1742,7 +1742,7 @@ textarea {
 }
 
 .dev-sidebar b {
-  color: var(--gold);
+  color: var(--navy);
 }
 /* ==================================================
    COZINHA - COLUNAS, TEMPO E PRIORIDADE AUTOMÁTICA
