@@ -33,10 +33,10 @@ function queueWrite(task) {
 function defaultDb() {
   return {
     users: [
-      { id: 1, name: 'Administrador', email: 'admin@quintaldoze.local', password: 'quintaldoze123', role: 'admin' },
-      { id: 2, name: 'Garçom', email: 'garcom@quintaldoze.local', password: 'quintaldoze123', role: 'garcom' },
-      { id: 3, name: 'Cozinha', email: 'cozinha@quintaldoze.local', password: 'quintaldoze123', role: 'cozinha' },
-      { id: 4, name: 'Caixa', email: 'caixa@quintaldoze.local', password: 'quintaldoze123', role: 'caixa' }
+      { id: 1, name: 'Administrador', email: 'admin@quintaldoze', password: 'quintaldoze123', role: 'admin' },
+      { id: 2, name: 'Garçom', email: 'garcom@quintaldoze', password: 'quintaldoze123', role: 'garcom' },
+      { id: 3, name: 'Cozinha', email: 'cozinha@quintaldoze', password: 'quintaldoze123', role: 'cozinha' },
+      { id: 4, name: 'Caixa', email: 'caixa@quintaldoze', password: 'quintaldoze123', role: 'caixa' }
     ],
     products: [
       { id: 101, name: 'Prato Executivo', category: 'Pratos', price: 28.90, description: 'Arroz, feijão, salada e proteína do dia', active: true },
@@ -399,7 +399,7 @@ async function startServer() {
     console.log(`Computador: http://localhost:${PORT}`);
     getLocalIps().forEach((ip) => console.log(`Celular/tablet: http://${ip}:${PORT}`));
     console.log(`Storage ativo: ${STORAGE_MODE}`);
-    console.log('Login admin: admin@quintaldoze.local / quintaldoze123');
+    console.log('Login admin: admin@quintaldoze / quintaldoze123');
     console.log('========================================');
   });
 }
