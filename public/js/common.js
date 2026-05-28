@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const dev = document.createElement('div');
   dev.className = 'dev-sidebar';
-  dev.innerHTML = 'Desenvolvido por <b>Eduardo</b>';
+  dev.innerHTML = 'Desenvolvido por <b>KavCode</b>';
 
   sidebar.appendChild(dev);
 });
