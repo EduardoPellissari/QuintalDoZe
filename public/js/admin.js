@@ -751,7 +751,7 @@ window.printQuote = async (id) => {
       <div class="metric"><span>Status</span><b>${escapeHtml(quoteStatusLabel(quote.status))}</b></div>
     </div>
 
-    <div class="grid g4" style="margin-top:18px">
+    <div class="grid g4" style="margin-top:10px">
       <div class="metric"><span>Data</span><b>${quoteDate(quote.eventDate)}</b></div>
       <div class="metric"><span>Horário</span><b>${escapeHtml(quote.eventTime || '-')}</b></div>
       <div class="metric"><span>Pessoas</span><b>${Number(quote.guests || 0) || '-'}</b></div>

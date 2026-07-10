@@ -210,17 +210,21 @@ function openReportPrintDocument({
           gap: 12px;
         }
 
+        .pdf-print-shell .grid.g4 {
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
         .pdf-print-shell .metric {
           display: flex;
           flex-direction: column;
           align-items: flex-start;
           justify-content: center;
-          min-height: 74px;
+          min-height: 58px;
           color: #171511;
           background: rgba(255,246,218,.78);
           border: 1px solid rgba(156,122,28,.26);
-          border-radius: 18px;
-          padding: 14px 16px;
+          border-radius: 16px;
+          padding: 10px 14px;
           box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
         }
 
@@ -241,7 +245,7 @@ function openReportPrintDocument({
         }
 
         .pdf-print-shell h2 {
-          margin: 24px 0 12px;
+          margin: 18px 0 12px;
           color: #1c1c1c;
           font-size: 23px;
           letter-spacing: -.03em;
