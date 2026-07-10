@@ -288,6 +288,7 @@ app.delete('/api/products/:id', asyncHandler(async (req, res) => {
 function sanitizeQuoteItems(items) {
   return (Array.isArray(items) ? items : [])
     .map((item) => ({
+      productId: item.productId ? Number(item.productId) || null : null,
       description: String(item.description || '').trim(),
       qty: Math.max(Number(item.qty || 1), 0),
       unitPrice: Math.max(Number(item.unitPrice || 0), 0)

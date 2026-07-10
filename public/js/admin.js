@@ -22,7 +22,8 @@ setText('pageSub', txt('admin.dashboardSubtitulo', 'Gerencie usuários, produtos
 let editingUser = null;
 let editingProduct = null;
 let editingQuote = null;
-let quoteItems = [{ description: '', qty: 1, unitPrice: 0 }];
+let quoteProducts = [];
+let quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
 
 const quoteTypes = ['Café da tarde', 'Happy hour', 'Coffee break', 'Almoço/Jantar', 'Evento personalizado'];
 const quoteStatuses = [
@@ -44,7 +45,7 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
   editingUser = null;
   editingProduct = null;
   editingQuote = null;
-  quoteItems = [{ description: '', qty: 1, unitPrice: 0 }];
+  quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
 
   if (button.dataset.tab === 'users') renderUsers();
   if (button.dataset.tab === 'products') renderProducts();
@@ -366,9 +367,33 @@ function quoteDate(value) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('pt-BR');
 }
 
+function quoteProductLabel(product) {
+  const pieces = [
+    product.name,
+    product.category ? `(${product.category})` : '',
+    money(product.price || 0),
+  ].filter(Boolean);
+  return pieces.join(' ');
+}
+
+function quoteItemDescriptionFromProduct(product) {
+  return product.description ? `${product.name} - ${product.description}` : product.name;
+}
+
 function renderQuoteItemRows() {
   return quoteItems.map((item, index) => `
     <div class="quote-item-row">
+      <label>Produto salvo
+        <select class="quote-item-input quote-product-select" data-index="${index}" data-field="productId">
+          <option value="">Selecionar produto...</option>
+          ${quoteProducts.map((product) => `
+            <option value="${product.id}" ${Number(item.productId || 0) === Number(product.id) ? 'selected' : ''}>
+              ${escapeHtml(quoteProductLabel(product))}
+            </option>
+          `).join('')}
+        </select>
+      </label>
+
       <label>Item
         <input class="quote-item-input" data-index="${index}" data-field="description" placeholder="Ex: Mini sanduíches, bolo, salgados..." value="${escapeHtml(item.description)}">
       </label>
@@ -404,14 +429,31 @@ function renderQuoteItemsOnly() {
 
 function bindQuoteItemEvents() {
   document.querySelectorAll('.quote-item-input').forEach((input) => {
-    input.addEventListener('input', (event) => {
+    const eventName = input.tagName === 'SELECT' ? 'change' : 'input';
+
+    input.addEventListener(eventName, (event) => {
       const index = Number(event.target.dataset.index);
       const field = event.target.dataset.field;
       if (!quoteItems[index]) return;
 
-      quoteItems[index][field] = ['qty', 'unitPrice'].includes(field)
-        ? Number(event.target.value || 0)
-        : event.target.value;
+      if (field === 'productId') {
+        const product = quoteProducts.find((item) => Number(item.id) === Number(event.target.value));
+        quoteItems[index].productId = product ? product.id : null;
+
+        if (product) {
+          quoteItems[index].description = quoteItemDescriptionFromProduct(product);
+          quoteItems[index].unitPrice = Number(product.price || 0);
+
+          const descriptionInput = document.querySelector(`[data-index="${index}"][data-field="description"]`);
+          const priceInput = document.querySelector(`[data-index="${index}"][data-field="unitPrice"]`);
+          if (descriptionInput) descriptionInput.value = quoteItems[index].description;
+          if (priceInput) priceInput.value = quoteItems[index].unitPrice;
+        }
+      } else {
+        quoteItems[index][field] = ['qty', 'unitPrice'].includes(field)
+          ? Number(event.target.value || 0)
+          : event.target.value;
+      }
 
       const rowTotal = document.querySelector(`[data-row-total="${index}"]`);
       if (rowTotal) {
@@ -423,13 +465,13 @@ function bindQuoteItemEvents() {
 }
 
 window.addQuoteItem = () => {
-  quoteItems.push({ description: '', qty: 1, unitPrice: 0 });
+  quoteItems.push({ productId: null, description: '', qty: 1, unitPrice: 0 });
   renderQuoteItemsOnly();
 };
 
 window.removeQuoteItem = (index) => {
   quoteItems.splice(index, 1);
-  if (!quoteItems.length) quoteItems = [{ description: '', qty: 1, unitPrice: 0 }];
+  if (!quoteItems.length) quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
   renderQuoteItemsOnly();
 };
 
@@ -437,7 +479,14 @@ async function renderQuotes() {
   setText('pageTitle', 'Orçamentos');
   setText('pageSub', 'Monte propostas para café da tarde, happy hour, coffee break e eventos.');
 
-  const quotes = await API.get('/api/quotes');
+  const [quotes, products] = await Promise.all([
+    API.get('/api/quotes'),
+    API.get('/api/products'),
+  ]);
+  quoteProducts = products
+    .filter((product) => product.active !== false)
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'));
+
   const sortedQuotes = [...quotes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const activeQuotes = quotes.filter((quote) => !['aprovado', 'cancelado'].includes(quote.status)).length;
   const approvedTotal = quotes
@@ -508,7 +557,7 @@ async function renderQuotes() {
             <div class="quote-editor-head">
               <div>
                 <h3>Itens do orçamento</h3>
-                <p class="muted">Informe os itens, quantidades e valores da proposta.</p>
+                <p class="muted">Selecione produtos já cadastrados ou preencha itens personalizados.</p>
               </div>
               <button class="soft" type="button" onclick="addQuoteItem()">Adicionar item</button>
             </div>
@@ -550,7 +599,7 @@ async function renderQuotes() {
   if (cancel) {
     cancel.onclick = () => {
       editingQuote = null;
-      quoteItems = [{ description: '', qty: 1, unitPrice: 0 }];
+      quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
       renderQuotes();
     };
   }
@@ -593,7 +642,7 @@ function quoteCard(quote) {
 
       <div class="actions" style="margin-top:12px">
         <button class="soft" onclick="editQuote(${quote.id})">Editar</button>
-        <button class="soft" onclick="printQuote(${quote.id})">Imprimir</button>
+        <button class="soft" onclick="printQuote(${quote.id})">Gerar PDF</button>
         <button class="danger" onclick="deleteQuote(${quote.id})">Excluir</button>
       </div>
     </article>
@@ -621,7 +670,7 @@ async function saveQuote(event) {
     else await API.post('/api/quotes', body);
 
     editingQuote = null;
-    quoteItems = [{ description: '', qty: 1, unitPrice: 0 }];
+    quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
     toast('Orçamento salvo.');
     renderQuotes();
   } catch (err) {
@@ -632,8 +681,9 @@ async function saveQuote(event) {
 window.editQuote = async (id) => {
   const quotes = await API.get('/api/quotes');
   editingQuote = quotes.find((quote) => Number(quote.id) === Number(id));
-  quoteItems = (editingQuote?.items?.length ? editingQuote.items : [{ description: '', qty: 1, unitPrice: 0 }])
+  quoteItems = (editingQuote?.items?.length ? editingQuote.items : [{ productId: null, description: '', qty: 1, unitPrice: 0 }])
     .map((item) => ({
+      productId: item.productId || null,
       description: item.description || '',
       qty: Number(item.qty || 1),
       unitPrice: Number(item.unitPrice || 0),
@@ -656,6 +706,10 @@ window.printQuote = async (id) => {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return toast('Permita pop-ups para imprimir o orçamento.');
 
+  const logoUrl = `${window.location.origin}/assets/logo.jpg`;
+  const generatedAt = new Date().toLocaleDateString('pt-BR');
+  const quoteNumber = String(quote.id || '').padStart(4, '0');
+
   printWindow.document.write(`
     <!doctype html>
     <html lang="pt-BR">
@@ -663,42 +717,288 @@ window.printQuote = async (id) => {
       <meta charset="utf-8">
       <title>Orçamento ${escapeHtml(quote.clientName)}</title>
       <style>
-        body { font-family: Arial, sans-serif; color: #1c1c1c; margin: 32px; }
-        h1 { margin: 0 0 8px; }
-        .muted { color: #666; }
-        table { width: 100%; border-collapse: collapse; margin-top: 24px; }
-        th, td { border-bottom: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background: #f6c400; color: #151515; }
-        .total { text-align: right; font-size: 22px; font-weight: 700; margin-top: 22px; }
+        @page { size: A4; margin: 16mm; }
+
+        * { box-sizing: border-box; }
+
+        body {
+          margin: 0;
+          color: #171511;
+          background: #f7f1df;
+          font-family: Arial, Helvetica, sans-serif;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        .proposal {
+          min-height: 100vh;
+          padding: 26px;
+          background:
+            radial-gradient(circle at 12% 0%, rgba(246,196,0,.32), transparent 28%),
+            linear-gradient(180deg, #fffaf0 0%, #f7f1df 100%);
+        }
+
+        .hero {
+          display: grid;
+          grid-template-columns: 92px 1fr auto;
+          gap: 18px;
+          align-items: center;
+          padding: 22px;
+          border-radius: 24px;
+          color: #fff7d7;
+          background:
+            linear-gradient(135deg, rgba(0,0,0,.78), rgba(16,14,9,.94)),
+            linear-gradient(135deg, #f6c400, #151515);
+          box-shadow: 0 16px 36px rgba(0,0,0,.12);
+        }
+
+        .brand-logo {
+          width: 92px;
+          height: 92px;
+          object-fit: cover;
+          border-radius: 22px;
+          border: 2px solid rgba(246,196,0,.7);
+          background: #111;
+        }
+
+        .eyebrow {
+          display: inline-block;
+          margin-bottom: 8px;
+          padding: 6px 10px;
+          border-radius: 999px;
+          color: #151515;
+          background: #f6c400;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: .06em;
+          text-transform: uppercase;
+        }
+
+        h1, h2, h3, p { margin: 0; }
+
+        h1 {
+          font-size: 28px;
+          line-height: 1;
+          letter-spacing: -.03em;
+        }
+
+        .hero p {
+          margin-top: 8px;
+          color: #e5dcc3;
+          font-size: 13px;
+        }
+
+        .quote-id {
+          min-width: 116px;
+          padding: 12px 14px;
+          border: 1px solid rgba(246,196,0,.35);
+          border-radius: 18px;
+          text-align: right;
+          background: rgba(255,255,255,.06);
+        }
+
+        .quote-id span {
+          display: block;
+          color: #d9d0ba;
+          font-size: 11px;
+          text-transform: uppercase;
+        }
+
+        .quote-id b {
+          display: block;
+          margin-top: 4px;
+          color: #f6c400;
+          font-size: 20px;
+        }
+
+        .section {
+          margin-top: 18px;
+          padding: 20px;
+          border: 1px solid #e3d6b8;
+          border-radius: 22px;
+          background: rgba(255,255,255,.78);
+        }
+
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .info {
+          padding: 12px 14px;
+          border-radius: 14px;
+          background: #fff8e7;
+          border: 1px solid #eadbb8;
+        }
+
+        .info span {
+          display: block;
+          margin-bottom: 4px;
+          color: #766b55;
+          font-size: 11px;
+          font-weight: 800;
+          text-transform: uppercase;
+        }
+
+        .info b {
+          color: #211f19;
+          font-size: 14px;
+        }
+
+        .notes {
+          margin-top: 12px;
+          padding: 14px;
+          border-left: 5px solid #f6c400;
+          border-radius: 14px;
+          background: #fff5d6;
+          color: #4b432f;
+          line-height: 1.45;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+          overflow: hidden;
+          margin-top: 14px;
+          border: 1px solid #dfd1ad;
+          border-radius: 18px;
+        }
+
+        th, td {
+          padding: 12px;
+          text-align: left;
+          border-bottom: 1px solid #eadfca;
+        }
+
+        th {
+          color: #171511;
+          background: #f6c400;
+          font-size: 12px;
+          text-transform: uppercase;
+        }
+
+        tr:last-child td { border-bottom: 0; }
+        td.num, th.num { text-align: right; }
+
+        .total {
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+          gap: 16px;
+          margin-top: 18px;
+          padding: 16px 18px;
+          border-radius: 18px;
+          color: #fff;
+          background: #171511;
+        }
+
+        .total span {
+          color: #e5dcc3;
+          font-weight: 700;
+        }
+
+        .total b {
+          color: #f6c400;
+          font-size: 28px;
+        }
+
+        .footer {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          margin-top: 18px;
+          color: #6d624f;
+          font-size: 12px;
+        }
+
+        @media print {
+          .proposal { padding: 0; background: #fffaf0; }
+          .hero, .section { box-shadow: none; }
+        }
       </style>
     </head>
     <body>
-      <h1>Orçamento Quintal do Zé</h1>
-      <p class="muted">Cliente: ${escapeHtml(quote.clientName)}</p>
-      <p class="muted">Evento: ${escapeHtml(quote.eventType)} • ${quoteDate(quote.eventDate)} ${escapeHtml(quote.eventTime || '')}</p>
-      <p class="muted">Pessoas: ${Number(quote.guests || 0) || '-'} • Local: ${escapeHtml(quote.location || '-')}</p>
-      ${quote.notes ? `<p>${escapeHtml(quote.notes)}</p>` : ''}
-      <table>
-        <thead><tr><th>Item</th><th>Qtd.</th><th>Valor unit.</th><th>Total</th></tr></thead>
-        <tbody>
-          ${(quote.items || []).map((item) => `
-            <tr>
-              <td>${escapeHtml(item.description)}</td>
-              <td>${Number(item.qty || 0)}</td>
-              <td>${money(item.unitPrice)}</td>
-              <td>${money(Number(item.qty || 0) * Number(item.unitPrice || 0))}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      <div class="total">Total: ${money(quote.total)}</div>
+      <main class="proposal">
+        <header class="hero">
+          <img class="brand-logo" src="${logoUrl}" alt="Logo Quintal do Zé">
+          <div>
+            <span class="eyebrow">Proposta comercial</span>
+            <h1>Orçamento Quintal do Zé</h1>
+            <p>Café da tarde, happy hour, coffee break e eventos personalizados.</p>
+          </div>
+          <div class="quote-id">
+            <span>Orçamento</span>
+            <b>#${escapeHtml(quoteNumber)}</b>
+          </div>
+        </header>
+
+        <section class="section">
+          <div class="grid">
+            <div class="info"><span>Cliente</span><b>${escapeHtml(quote.clientName)}</b></div>
+            <div class="info"><span>Contato</span><b>${escapeHtml(quote.phone || '-')}</b></div>
+            <div class="info"><span>Evento</span><b>${escapeHtml(quote.eventType)}</b></div>
+            <div class="info"><span>Status</span><b>${escapeHtml(quoteStatusLabel(quote.status))}</b></div>
+            <div class="info"><span>Data e horário</span><b>${quoteDate(quote.eventDate)} ${escapeHtml(quote.eventTime || '')}</b></div>
+            <div class="info"><span>Pessoas</span><b>${Number(quote.guests || 0) || '-'}</b></div>
+            <div class="info"><span>Local</span><b>${escapeHtml(quote.location || '-')}</b></div>
+            <div class="info"><span>Emitido em</span><b>${generatedAt}</b></div>
+          </div>
+          ${quote.notes ? `<p class="notes">${escapeHtml(quote.notes)}</p>` : ''}
+        </section>
+
+        <section class="section">
+          <h2>Itens da proposta</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="num">Qtd.</th>
+                <th class="num">Valor unit.</th>
+                <th class="num">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(quote.items || []).map((item) => `
+                <tr>
+                  <td>${escapeHtml(item.description)}</td>
+                  <td class="num">${Number(item.qty || 0)}</td>
+                  <td class="num">${money(item.unitPrice)}</td>
+                  <td class="num">${money(Number(item.qty || 0) * Number(item.unitPrice || 0))}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="total">
+            <span>Total do orçamento</span>
+            <b>${money(quote.total)}</b>
+          </div>
+        </section>
+
+        <footer class="footer">
+          <span>Quintal do Zé</span>
+          <span>Orçamento gerado pelo sistema de pedidos.</span>
+        </footer>
+      </main>
+      <script>
+        const startPrint = () => {
+          window.focus();
+          setTimeout(() => window.print(), 250);
+        };
+        const logo = document.querySelector('.brand-logo');
+        if (logo && !logo.complete) {
+          logo.addEventListener('load', startPrint, { once: true });
+          logo.addEventListener('error', startPrint, { once: true });
+        } else {
+          startPrint();
+        }
+      <\/script>
     </body>
     </html>
   `);
 
   printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
 };
 
 async function renderCash() {
