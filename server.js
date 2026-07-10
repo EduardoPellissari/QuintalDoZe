@@ -43,6 +43,7 @@ function defaultDb() {
       { id: 102, name: 'Porção de Batata', category: 'Porções', price: 24.00, description: 'Batata frita crocante', active: true },
       { id: 103, name: 'Refrigerante Lata', category: 'Bebidas', price: 6.50, description: '350 ml', active: true }
     ],
+    quotes: [],
     orders: []
   };
 }
@@ -53,6 +54,7 @@ function normalizeDb(dbCandidate) {
 
   if (!Array.isArray(db.users)) db.users = defaults.users;
   if (!Array.isArray(db.products)) db.products = [];
+  if (!Array.isArray(db.quotes)) db.quotes = [];
   if (!Array.isArray(db.orders)) db.orders = [];
 
   return db;
@@ -279,6 +281,88 @@ app.put('/api/products/:id', asyncHandler(async (req, res) => {
 app.delete('/api/products/:id', asyncHandler(async (req, res) => {
   const db = await readDb();
   db.products = db.products.filter((p) => String(p.id) !== String(req.params.id));
+  await writeDb(db);
+  res.json({ ok: true });
+}));
+
+function sanitizeQuoteItems(items) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      description: String(item.description || '').trim(),
+      qty: Math.max(Number(item.qty || 1), 0),
+      unitPrice: Math.max(Number(item.unitPrice || 0), 0)
+    }))
+    .filter((item) => item.description && item.qty > 0);
+}
+
+function quoteTotal(items) {
+  return items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
+}
+
+function quoteBody(body, existingQuote = null) {
+  const items = sanitizeQuoteItems(body.items);
+  const clientName = String(body.clientName || '').trim();
+  const eventType = String(body.eventType || '').trim();
+
+  if (!clientName) return { error: 'Informe o nome do cliente.' };
+  if (!eventType) return { error: 'Escolha o tipo de evento.' };
+  if (!items.length) return { error: 'Adicione pelo menos um item ao orçamento.' };
+
+  const now = new Date().toISOString();
+
+  return {
+    quote: {
+      id: existingQuote?.id,
+      clientName,
+      phone: String(body.phone || '').trim(),
+      eventType,
+      eventDate: String(body.eventDate || '').trim(),
+      eventTime: String(body.eventTime || '').trim(),
+      guests: Number(body.guests || 0),
+      location: String(body.location || '').trim(),
+      notes: String(body.notes || '').trim(),
+      status: String(body.status || existingQuote?.status || 'rascunho'),
+      items,
+      total: quoteTotal(items),
+      createdAt: existingQuote?.createdAt || now,
+      updatedAt: now
+    }
+  };
+}
+
+app.get('/api/quotes', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  res.json(db.quotes);
+}));
+
+app.post('/api/quotes', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const result = quoteBody(req.body);
+  if (result.error) return res.status(400).json({ error: result.error });
+
+  const quote = { ...result.quote, id: nextId(db.quotes) };
+  db.quotes.push(quote);
+
+  await writeDb(db);
+  res.json(quote);
+}));
+
+app.put('/api/quotes/:id', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const index = db.quotes.findIndex((quote) => String(quote.id) === String(req.params.id));
+  if (index < 0) return res.status(404).json({ error: 'Orçamento não encontrado.' });
+
+  const result = quoteBody(req.body, db.quotes[index]);
+  if (result.error) return res.status(400).json({ error: result.error });
+
+  db.quotes[index] = { ...result.quote, id: db.quotes[index].id };
+  await writeDb(db);
+  res.json(db.quotes[index]);
+}));
+
+app.delete('/api/quotes/:id', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  db.quotes = db.quotes.filter((quote) => String(quote.id) !== String(req.params.id));
   await writeDb(db);
   res.json({ ok: true });
 }));
