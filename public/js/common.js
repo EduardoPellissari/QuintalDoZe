@@ -66,6 +66,232 @@ function dateTime(value) {
   return new Date(value).toLocaleString('pt-BR');
 }
 
+function openReportPrintDocument({
+  documentTitle,
+  heading,
+  subtitle,
+  details = '',
+  metricsHtml = '',
+  bodyHtml = '',
+  footerLeft = 'Quintal do Zé',
+  footerRight = 'Documento gerado pelo sistema de pedidos.',
+  blockedMessage = 'Permita pop-ups para gerar o PDF.',
+}) {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    toast(blockedMessage);
+    return false;
+  }
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <base href="${window.location.origin}/">
+      <title>${documentTitle}</title>
+      <link rel="stylesheet" href="/styles.css">
+      <style>
+        @page { size: A4; margin: 14mm; }
+
+        body {
+          margin: 0;
+          background: #fff;
+          color: #1c1c1c;
+          font-family: Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        .pdf-print-shell {
+          padding: 28px;
+          background: #fff;
+        }
+
+        .pdf-print-shell .report-page {
+          margin: 0 auto;
+          max-width: 980px;
+          box-shadow: none;
+        }
+
+        .pdf-print-shell .report-head {
+          border-bottom: 2px solid #eee;
+        }
+
+        .pdf-print-shell .report-head h1 {
+          color: #1c1c1c;
+          margin: 0 0 8px;
+        }
+
+        .pdf-print-shell .report-head p,
+        .pdf-print-shell .muted {
+          color: #666;
+        }
+
+        .pdf-print-shell .metric {
+          color: #1c1c1c;
+        }
+
+        .pdf-print-shell .metric span {
+          color: #666;
+          font-weight: 800;
+        }
+
+        .pdf-print-shell .metric b,
+        .pdf-print-shell .price {
+          color: #1c1c1c;
+        }
+
+        .pdf-print-shell .table {
+          min-width: 0;
+        }
+
+        .pdf-print-shell .table th {
+          color: #1c1c1c;
+          background: #f6c400;
+          border-bottom-color: #e2b600;
+        }
+
+        .pdf-print-shell .table td {
+          color: #1c1c1c;
+          border-bottom-color: #eee;
+        }
+
+        .pdf-print-note {
+          margin: 18px 0 0;
+          padding: 14px 16px;
+          border-left: 5px solid #f6c400;
+          border-radius: 14px;
+          background: #fff9df;
+          color: #4d4636;
+          line-height: 1.45;
+        }
+
+        .pdf-print-total {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 18px;
+          margin-top: 18px;
+          padding: 18px;
+          border-radius: 18px;
+          background: #fafafa;
+          border: 1px solid #eee;
+        }
+
+        .pdf-print-total span {
+          color: #666;
+          font-weight: 900;
+          text-transform: uppercase;
+          font-size: 12px;
+        }
+
+        .pdf-print-total b {
+          color: #1c1c1c;
+          font-size: 30px;
+        }
+
+        .pdf-print-footer {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          margin-top: 18px;
+          color: #666;
+          font-size: 12px;
+        }
+
+        @media print {
+          .pdf-print-shell { padding: 0; }
+          .pdf-print-shell .report-page { max-width: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <main class="pdf-print-shell">
+        <section class="report-page">
+          <div class="report-head">
+            <div>
+              <h1>${heading}</h1>
+              <p>${subtitle}</p>
+              ${details ? `<p class="muted">${details}</p>` : ''}
+            </div>
+            <img src="/assets/logo.jpg" alt="Logo Quintal do Zé">
+          </div>
+
+          ${metricsHtml}
+          ${bodyHtml}
+
+          <div class="pdf-print-footer">
+            <span>${footerLeft}</span>
+            <span>${footerRight}</span>
+          </div>
+        </section>
+      </main>
+      <script>
+        let printed = false;
+        const startPrint = () => {
+          if (printed) return;
+          printed = true;
+          window.focus();
+          setTimeout(() => window.print(), 350);
+        };
+        const logo = document.querySelector('.report-head img');
+        const stylesheet = document.querySelector('link[rel="stylesheet"]');
+        let pending = 0;
+        const done = () => {
+          pending -= 1;
+          if (pending <= 0) startPrint();
+        };
+        if (stylesheet) {
+          pending += 1;
+          stylesheet.addEventListener('load', done, { once: true });
+          stylesheet.addEventListener('error', done, { once: true });
+        }
+        if (logo && !logo.complete) {
+          pending += 1;
+          logo.addEventListener('load', done, { once: true });
+          logo.addEventListener('error', done, { once: true });
+        }
+        if (!pending) startPrint();
+        setTimeout(() => {
+          if (pending > 0) startPrint();
+        }, 900);
+      <\/script>
+    </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+  return true;
+}
+
+function printVisibleReportDocument() {
+  const report = document.querySelector('.report-page');
+  if (!report) {
+    toast('Relatório não encontrado.');
+    return false;
+  }
+
+  const clone = report.cloneNode(true);
+  const head = clone.querySelector('.report-head');
+  const heading = head?.querySelector('h1')?.textContent || 'Relatório Quintal do Zé';
+  const paragraphs = Array.from(head?.querySelectorAll('p') || []);
+  const subtitle = paragraphs[0]?.textContent || new Date().toLocaleDateString('pt-BR');
+  const details = paragraphs.slice(1).map((item) => item.textContent).filter(Boolean).join(' • ');
+
+  if (head) head.remove();
+
+  return openReportPrintDocument({
+    documentTitle: heading,
+    heading,
+    subtitle,
+    details,
+    bodyHtml: clone.innerHTML,
+    blockedMessage: 'Permita pop-ups para imprimir o relatório.',
+  });
+}
+
 function currentUser() {
   try {
     return JSON.parse(localStorage.getItem('qz_user') || 'null');

@@ -108,7 +108,7 @@ async function reports() {
   const avgDuration = durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : null;
 
   document.getElementById('content').innerHTML = `
-    <button class="primary print-btn" onclick="window.print()">${txt('relatorios.botaoPdf', 'Salvar/Imprimir PDF')}</button>
+    <button class="primary print-btn" onclick="printVisibleReportDocument()">${txt('relatorios.botaoPdf', 'Salvar/Imprimir PDF')}</button>
 
     <section class="report-page" style="margin-top:16px">
       <div class="report-head">

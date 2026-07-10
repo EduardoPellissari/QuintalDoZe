@@ -733,240 +733,74 @@ window.printQuote = async (id) => {
   const quote = quotes.find((item) => Number(item.id) === Number(id));
   if (!quote) return toast('Orçamento não encontrado.');
 
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return toast('Permita pop-ups para imprimir o orçamento.');
-
   const generatedAt = new Date().toLocaleDateString('pt-BR');
   const quoteNumber = String(quote.id || '').padStart(4, '0');
   const details = [
+    `Nº ${quoteNumber}`,
     quote.eventType,
     quote.eventDate ? quoteDate(quote.eventDate) : '',
     quote.eventTime || '',
     quote.guests ? `${quote.guests} pessoas` : '',
   ].filter(Boolean).join(' • ');
 
-  printWindow.document.write(`
-    <!doctype html>
-    <html lang="pt-BR">
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <base href="${window.location.origin}/">
-      <title>Orçamento ${escapeHtml(quote.clientName)}</title>
-      <link rel="stylesheet" href="/styles.css">
-      <style>
-        @page { size: A4; margin: 14mm; }
+  const metricsHtml = `
+    <div class="grid g4">
+      <div class="metric"><span>Cliente</span><b>${escapeHtml(quote.clientName)}</b></div>
+      <div class="metric"><span>Contato</span><b>${escapeHtml(quote.phone || '-')}</b></div>
+      <div class="metric"><span>Evento</span><b>${escapeHtml(quote.eventType || '-')}</b></div>
+      <div class="metric"><span>Status</span><b>${escapeHtml(quoteStatusLabel(quote.status))}</b></div>
+    </div>
 
-        body {
-          margin: 0;
-          background: #fff;
-          color: #1c1c1c;
-          font-family: Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
+    <div class="grid g4" style="margin-top:18px">
+      <div class="metric"><span>Data</span><b>${quoteDate(quote.eventDate)}</b></div>
+      <div class="metric"><span>Horário</span><b>${escapeHtml(quote.eventTime || '-')}</b></div>
+      <div class="metric"><span>Pessoas</span><b>${Number(quote.guests || 0) || '-'}</b></div>
+      <div class="metric"><span>Local</span><b>${escapeHtml(quote.location || '-')}</b></div>
+    </div>
+  `;
 
-        .quote-print-shell {
-          padding: 28px;
-          background: #fff;
-        }
+  const bodyHtml = `
+    ${quote.notes ? `<p class="pdf-print-note">${escapeHtml(quote.notes)}</p>` : ''}
 
-        .quote-print-shell .report-page {
-          margin: 0 auto;
-          max-width: 980px;
-          box-shadow: none;
-        }
+    <h2 style="margin-top:24px">Itens do orçamento</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Qtd.</th>
+            <th>Valor unit.</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(quote.items || []).map((item) => `
+            <tr>
+              <td>${escapeHtml(item.description)}</td>
+              <td>${Number(item.qty || 0)}</td>
+              <td>${money(item.unitPrice)}</td>
+              <td>${money(Number(item.qty || 0) * Number(item.unitPrice || 0))}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
 
-        .quote-print-shell .report-head {
-          border-bottom: 2px solid #eee;
-        }
+    <div class="pdf-print-total">
+      <span>Total do orçamento</span>
+      <b>${money(quote.total)}</b>
+    </div>
+  `;
 
-        .quote-print-shell .report-head h1 {
-          color: #1c1c1c;
-          margin: 0 0 8px;
-        }
-
-        .quote-print-shell .report-head p,
-        .quote-print-shell .muted {
-          color: #666;
-        }
-
-        .quote-print-shell .metric {
-          color: #1c1c1c;
-        }
-
-        .quote-print-shell .metric span {
-          color: #666;
-          font-weight: 800;
-        }
-
-        .quote-print-shell .metric b,
-        .quote-print-shell .price {
-          color: #1c1c1c;
-        }
-
-        .quote-print-shell .table th {
-          color: #1c1c1c;
-          background: #f6c400;
-          border-bottom-color: #e2b600;
-        }
-
-        .quote-print-shell .table td {
-          color: #1c1c1c;
-          border-bottom-color: #eee;
-        }
-
-        .quote-print-shell .table {
-          min-width: 0;
-        }
-
-        .quote-print-note {
-          margin: 18px 0 0;
-          padding: 14px 16px;
-          border-left: 5px solid #f6c400;
-          border-radius: 14px;
-          background: #fff9df;
-          color: #4d4636;
-          line-height: 1.45;
-        }
-
-        .quote-print-total {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 18px;
-          margin-top: 18px;
-          padding: 18px;
-          border-radius: 18px;
-          background: #fafafa;
-          border: 1px solid #eee;
-        }
-
-        .quote-print-total span {
-          color: #666;
-          font-weight: 900;
-          text-transform: uppercase;
-          font-size: 12px;
-        }
-
-        .quote-print-total b {
-          color: #1c1c1c;
-          font-size: 30px;
-        }
-
-        .quote-print-footer {
-          display: flex;
-          justify-content: space-between;
-          gap: 16px;
-          margin-top: 18px;
-          color: #666;
-          font-size: 12px;
-        }
-
-        @media print {
-          .quote-print-shell { padding: 0; }
-          .quote-print-shell .report-page { max-width: none; }
-        }
-      </style>
-    </head>
-    <body>
-      <main class="quote-print-shell">
-        <section class="report-page">
-          <div class="report-head">
-            <div>
-              <h1>Orçamento Quintal do Zé</h1>
-              <p>Proposta comercial • ${generatedAt}</p>
-              <p class="muted">Nº ${escapeHtml(quoteNumber)} • ${escapeHtml(details || 'Evento sem data definida')}</p>
-            </div>
-            <img src="/assets/logo.jpg" alt="Logo Quintal do Zé">
-          </div>
-
-          <div class="grid g4">
-            <div class="metric"><span>Cliente</span><b>${escapeHtml(quote.clientName)}</b></div>
-            <div class="metric"><span>Contato</span><b>${escapeHtml(quote.phone || '-')}</b></div>
-            <div class="metric"><span>Evento</span><b>${escapeHtml(quote.eventType || '-')}</b></div>
-            <div class="metric"><span>Status</span><b>${escapeHtml(quoteStatusLabel(quote.status))}</b></div>
-          </div>
-
-          <div class="grid g4" style="margin-top:18px">
-            <div class="metric"><span>Data</span><b>${quoteDate(quote.eventDate)}</b></div>
-            <div class="metric"><span>Horário</span><b>${escapeHtml(quote.eventTime || '-')}</b></div>
-            <div class="metric"><span>Pessoas</span><b>${Number(quote.guests || 0) || '-'}</b></div>
-            <div class="metric"><span>Local</span><b>${escapeHtml(quote.location || '-')}</b></div>
-          </div>
-
-          ${quote.notes ? `<p class="quote-print-note">${escapeHtml(quote.notes)}</p>` : ''}
-
-          <h2 style="margin-top:24px">Itens do orçamento</h2>
-          <div class="table-wrap">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Qtd.</th>
-                  <th>Valor unit.</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${(quote.items || []).map((item) => `
-                  <tr>
-                    <td>${escapeHtml(item.description)}</td>
-                    <td>${Number(item.qty || 0)}</td>
-                    <td>${money(item.unitPrice)}</td>
-                    <td>${money(Number(item.qty || 0) * Number(item.unitPrice || 0))}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-
-          <div class="quote-print-total">
-            <span>Total do orçamento</span>
-            <b>${money(quote.total)}</b>
-          </div>
-
-          <div class="quote-print-footer">
-            <span>Quintal do Zé</span>
-            <span>Documento gerado pelo sistema de pedidos.</span>
-          </div>
-        </section>
-      </main>
-      <script>
-        let printed = false;
-        const startPrint = () => {
-          if (printed) return;
-          printed = true;
-          window.focus();
-          setTimeout(() => window.print(), 350);
-        };
-        const logo = document.querySelector('.report-head img');
-        const stylesheet = document.querySelector('link[rel="stylesheet"]');
-        let pending = 0;
-        const done = () => {
-          pending -= 1;
-          if (pending <= 0) startPrint();
-        };
-        if (stylesheet) {
-          pending += 1;
-          stylesheet.addEventListener('load', done, { once: true });
-          stylesheet.addEventListener('error', done, { once: true });
-        }
-        if (logo && !logo.complete) {
-          pending += 1;
-          logo.addEventListener('load', done, { once: true });
-          logo.addEventListener('error', done, { once: true });
-        }
-        if (!pending) startPrint();
-        setTimeout(() => {
-          if (pending > 0) startPrint();
-        }, 900);
-      <\/script>
-    </body>
-    </html>
-  `);
-
-  printWindow.document.close();
+  openReportPrintDocument({
+    documentTitle: `Orçamento ${escapeHtml(quote.clientName)}`,
+    heading: 'Orçamento Quintal do Zé',
+    subtitle: `Proposta comercial • ${generatedAt}`,
+    details: escapeHtml(details),
+    metricsHtml,
+    bodyHtml,
+    blockedMessage: 'Permita pop-ups para imprimir o orçamento.',
+  });
 };
 
 async function renderCash() {
@@ -1073,7 +907,7 @@ async function renderReports() {
   const avgDuration = durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : null;
 
   content.innerHTML = `
-    <button class="primary print-btn" onclick="window.print()">${txt('relatorios.botaoPdf', 'Salvar/Imprimir PDF')}</button>
+    <button class="primary print-btn" onclick="printVisibleReportDocument()">${txt('relatorios.botaoPdf', 'Salvar/Imprimir PDF')}</button>
 
     <section class="report-page" style="margin-top:16px">
       <div class="report-head">
