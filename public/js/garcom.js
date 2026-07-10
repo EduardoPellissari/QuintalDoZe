@@ -16,7 +16,7 @@ let cart = [];
 let selectedCategory = txt('garcom.todos', 'Todos');
 
 async function init() {
-  products = (await API.get('/api/products')).filter((product) => product.active !== false);
+  products = (await API.get('/api/products?usage=orders')).filter((product) => product.active !== false);
   render();
 }
 

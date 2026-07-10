@@ -39,13 +39,30 @@ function defaultDb() {
       { id: 4, name: 'Caixa', email: 'caixa@quintaldoze', password: 'quintaldoze123', role: 'caixa' }
     ],
     products: [
-      { id: 101, name: 'Prato Executivo', category: 'Pratos', price: 28.90, description: 'Arroz, feijão, salada e proteína do dia', active: true },
-      { id: 102, name: 'Porção de Batata', category: 'Porções', price: 24.00, description: 'Batata frita crocante', active: true },
-      { id: 103, name: 'Refrigerante Lata', category: 'Bebidas', price: 6.50, description: '350 ml', active: true }
+      { id: 101, name: 'Prato Executivo', category: 'Pratos', price: 28.90, description: 'Arroz, feijão, salada e proteína do dia', active: true, usage: 'orders' },
+      { id: 102, name: 'Porção de Batata', category: 'Porções', price: 24.00, description: 'Batata frita crocante', active: true, usage: 'orders' },
+      { id: 103, name: 'Refrigerante Lata', category: 'Bebidas', price: 6.50, description: '350 ml', active: true, usage: 'orders' }
     ],
     quotes: [],
     orders: []
   };
+}
+
+function productUsage(value) {
+  return String(value) === 'quotes' ? 'quotes' : 'orders';
+}
+
+function normalizeProduct(product) {
+  const safeProduct = product && typeof product === 'object' ? product : {};
+  return {
+    ...safeProduct,
+    usage: productUsage(safeProduct.usage)
+  };
+}
+
+function productMatchesUsage(product, usage) {
+  if (!usage) return true;
+  return productUsage(product.usage) === usage;
 }
 
 function normalizeDb(dbCandidate) {
@@ -54,6 +71,7 @@ function normalizeDb(dbCandidate) {
 
   if (!Array.isArray(db.users)) db.users = defaults.users;
   if (!Array.isArray(db.products)) db.products = [];
+  db.products = db.products.map(normalizeProduct);
   if (!Array.isArray(db.quotes)) db.quotes = [];
   if (!Array.isArray(db.orders)) db.orders = [];
 
@@ -242,7 +260,8 @@ app.delete('/api/users/:id', asyncHandler(async (req, res) => {
 
 app.get('/api/products', asyncHandler(async (req, res) => {
   const db = await readDb();
-  res.json(db.products);
+  const usage = ['orders', 'quotes'].includes(String(req.query.usage || '')) ? String(req.query.usage) : '';
+  res.json(db.products.filter((product) => productMatchesUsage(product, usage)));
 }));
 
 app.post('/api/products', asyncHandler(async (req, res) => {
@@ -255,7 +274,8 @@ app.post('/api/products', asyncHandler(async (req, res) => {
     category: String(req.body.category || 'Geral').trim(),
     price: Number(req.body.price),
     description: String(req.body.description || '').trim(),
-    active: req.body.active !== false
+    active: req.body.active !== false,
+    usage: productUsage(req.body.usage)
   };
 
   db.products.push(product);
@@ -273,6 +293,7 @@ app.put('/api/products/:id', asyncHandler(async (req, res) => {
   product.price = Number(req.body.price || product.price);
   product.description = String(req.body.description || '').trim();
   product.active = req.body.active !== false;
+  if (req.body.usage) product.usage = productUsage(req.body.usage);
 
   await writeDb(db);
   res.json(product);

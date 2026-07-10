@@ -33,6 +33,11 @@ const quoteStatuses = [
   { value: 'cancelado', label: 'Cancelado' },
 ];
 
+const productUsageOptions = [
+  { value: 'orders', label: 'Pedidos / Atendente' },
+  { value: 'quotes', label: 'Orçamentos' },
+];
+
 const content = document.getElementById('content');
 
 document.getElementById('sideNav').addEventListener('click', (event) => {
@@ -195,19 +200,30 @@ window.deleteUser = async (id) => {
   renderUsers();
 };
 
+function productUsageValue(product) {
+  return product?.usage === 'quotes' ? 'quotes' : 'orders';
+}
+
+function productUsageLabel(product) {
+  const match = productUsageOptions.find((option) => option.value === productUsageValue(product));
+  return match ? match.label : productUsageOptions[0].label;
+}
+
 async function renderProducts() {
   setText('pageTitle', txt('admin.produtos.titulo', 'Produtos'));
-  setText('pageSub', txt('admin.produtos.subtitulo', 'Cadastre, edite e organize os itens do cardápio.'));
+  setText('pageSub', 'Separe os produtos do atendente e os itens usados somente nos orçamentos.');
 
   const products = await API.get('/api/products');
+  const orderProducts = products.filter((product) => productUsageValue(product) === 'orders');
+  const quoteOnlyProducts = products.filter((product) => productUsageValue(product) === 'quotes');
   const activeProducts = products.filter((product) => product.active !== false).length;
-  const menuTotal = products.reduce((sum, product) => sum + Number(product.price || 0), 0);
 
   content.innerHTML = `
     <section class="dashboard-cards">
       <div class="dash-card"><b>${products.length}</b><span>${txt('admin.produtos.cardProdutos', 'Produtos')}</span></div>
+      <div class="dash-card"><b>${orderProducts.length}</b><span>Pedidos / atendente</span></div>
+      <div class="dash-card"><b>${quoteOnlyProducts.length}</b><span>Orçamentos</span></div>
       <div class="dash-card"><b>${activeProducts}</b><span>${txt('admin.produtos.cardAtivos', 'Ativos')}</span></div>
-      <div class="dash-card"><b>${money(menuTotal)}</b><span>${txt('admin.produtos.cardSoma', 'Soma cardápio')}</span></div>
     </section>
 
     <div class="admin-layout admin-products">
@@ -215,9 +231,9 @@ async function renderProducts() {
         <div class="admin-form-head">
           <div>
             <h3>${editingProduct ? txt('admin.produtos.formEditar', 'Editar produto') : txt('admin.produtos.formNovo', 'Adicionar produto')}</h3>
-            <p>${txt('admin.produtos.formDescricao', 'Cadastre produtos, preços, categorias e disponibilidade do cardápio.')}</p>
+            <p>Escolha se o item aparece nos pedidos do atendente ou somente nos orçamentos.</p>
           </div>
-          <span class="badge ok">${txt('admin.produtos.badge', 'Cardápio')}</span>
+          <span class="badge ok">${productUsageLabel(editingProduct)}</span>
         </div>
 
         <form id="productForm">
@@ -238,6 +254,14 @@ async function renderProducts() {
               <select id="pActive">
                 <option value="true">${txt('admin.produtos.statusAtivo', 'Ativo')}</option>
                 <option value="false">${txt('admin.produtos.statusInativo', 'Inativo')}</option>
+              </select>
+            </label>
+
+            <label>Lista de uso
+              <select id="pUsage">
+                ${productUsageOptions.map((option) => `
+                  <option value="${option.value}" ${productUsageValue(editingProduct) === option.value ? 'selected' : ''}>${option.label}</option>
+                `).join('')}
               </select>
             </label>
 
@@ -268,6 +292,7 @@ async function renderProducts() {
                 <th>${txt('admin.produtos.colProduto', 'Produto')}</th>
                 <th>${txt('admin.produtos.colCategoria', 'Categoria')}</th>
                 <th>${txt('admin.produtos.colPreco', 'Preço')}</th>
+                <th>Lista</th>
                 <th>${txt('admin.produtos.colStatus', 'Status')}</th>
                 <th>${txt('admin.produtos.colAcoes', 'Ações')}</th>
               </tr>
@@ -278,6 +303,7 @@ async function renderProducts() {
                   <td>${product.name}</td>
                   <td>${product.category || '-'}</td>
                   <td>${money(product.price)}</td>
+                  <td><span class="badge ${productUsageValue(product) === 'quotes' ? 'warn' : 'ok'}">${productUsageLabel(product)}</span></td>
                   <td><span class="badge ${product.active !== false ? 'ok' : 'warn'}">${product.active !== false ? txt('admin.produtos.statusAtivo', 'Ativo') : txt('admin.produtos.statusInativo', 'Inativo')}</span></td>
                   <td>
                     <div class="actions">
@@ -294,7 +320,10 @@ async function renderProducts() {
     </div>
   `;
 
-  if (editingProduct) document.getElementById('pActive').value = String(editingProduct.active !== false);
+  if (editingProduct) {
+    document.getElementById('pActive').value = String(editingProduct.active !== false);
+    document.getElementById('pUsage').value = productUsageValue(editingProduct);
+  }
 
   const cancel = document.getElementById('cancelProduct');
   if (cancel) {
@@ -316,6 +345,7 @@ async function saveProduct(event) {
     price: Number(document.getElementById('pPrice').value),
     description: document.getElementById('pDesc').value,
     active: document.getElementById('pActive').value === 'true',
+    usage: document.getElementById('pUsage').value,
   };
 
   try {
@@ -481,7 +511,7 @@ async function renderQuotes() {
 
   const [quotes, products] = await Promise.all([
     API.get('/api/quotes'),
-    API.get('/api/products'),
+    API.get('/api/products?usage=quotes'),
   ]);
   quoteProducts = products
     .filter((product) => product.active !== false)
