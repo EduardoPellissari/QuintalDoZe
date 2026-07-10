@@ -706,293 +706,231 @@ window.printQuote = async (id) => {
   const printWindow = window.open('', '_blank');
   if (!printWindow) return toast('Permita pop-ups para imprimir o orçamento.');
 
-  const logoUrl = `${window.location.origin}/assets/logo.jpg`;
   const generatedAt = new Date().toLocaleDateString('pt-BR');
   const quoteNumber = String(quote.id || '').padStart(4, '0');
+  const details = [
+    quote.eventType,
+    quote.eventDate ? quoteDate(quote.eventDate) : '',
+    quote.eventTime || '',
+    quote.guests ? `${quote.guests} pessoas` : '',
+  ].filter(Boolean).join(' • ');
 
   printWindow.document.write(`
     <!doctype html>
     <html lang="pt-BR">
     <head>
       <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <base href="${window.location.origin}/">
       <title>Orçamento ${escapeHtml(quote.clientName)}</title>
+      <link rel="stylesheet" href="/styles.css">
       <style>
-        @page { size: A4; margin: 16mm; }
-
-        * { box-sizing: border-box; }
+        @page { size: A4; margin: 14mm; }
 
         body {
           margin: 0;
-          color: #171511;
-          background: #f7f1df;
-          font-family: Arial, Helvetica, sans-serif;
+          background: #fff;
+          color: #1c1c1c;
+          font-family: Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
 
-        .proposal {
-          min-height: 100vh;
-          padding: 26px;
-          background:
-            radial-gradient(circle at 12% 0%, rgba(246,196,0,.32), transparent 28%),
-            linear-gradient(180deg, #fffaf0 0%, #f7f1df 100%);
+        .quote-print-shell {
+          padding: 28px;
+          background: #fff;
         }
 
-        .hero {
-          display: grid;
-          grid-template-columns: 92px 1fr auto;
-          gap: 18px;
-          align-items: center;
-          padding: 22px;
-          border-radius: 24px;
-          color: #fff7d7;
-          background:
-            linear-gradient(135deg, rgba(0,0,0,.78), rgba(16,14,9,.94)),
-            linear-gradient(135deg, #f6c400, #151515);
-          box-shadow: 0 16px 36px rgba(0,0,0,.12);
+        .quote-print-shell .report-page {
+          margin: 0 auto;
+          max-width: 980px;
+          box-shadow: none;
         }
 
-        .brand-logo {
-          width: 92px;
-          height: 92px;
-          object-fit: cover;
-          border-radius: 22px;
-          border: 2px solid rgba(246,196,0,.7);
-          background: #111;
+        .quote-print-shell .report-head {
+          border-bottom: 2px solid #eee;
         }
 
-        .eyebrow {
-          display: inline-block;
-          margin-bottom: 8px;
-          padding: 6px 10px;
-          border-radius: 999px;
-          color: #151515;
+        .quote-print-shell .report-head h1 {
+          color: #1c1c1c;
+          margin: 0 0 8px;
+        }
+
+        .quote-print-shell .report-head p,
+        .quote-print-shell .muted {
+          color: #666;
+        }
+
+        .quote-print-shell .metric {
+          color: #1c1c1c;
+        }
+
+        .quote-print-shell .metric span {
+          color: #666;
+          font-weight: 800;
+        }
+
+        .quote-print-shell .metric b,
+        .quote-print-shell .price {
+          color: #1c1c1c;
+        }
+
+        .quote-print-shell .table th {
+          color: #1c1c1c;
           background: #f6c400;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: .06em;
-          text-transform: uppercase;
+          border-bottom-color: #e2b600;
         }
 
-        h1, h2, h3, p { margin: 0; }
-
-        h1 {
-          font-size: 28px;
-          line-height: 1;
-          letter-spacing: -.03em;
+        .quote-print-shell .table td {
+          color: #1c1c1c;
+          border-bottom-color: #eee;
         }
 
-        .hero p {
-          margin-top: 8px;
-          color: #e5dcc3;
-          font-size: 13px;
+        .quote-print-shell .table {
+          min-width: 0;
         }
 
-        .quote-id {
-          min-width: 116px;
-          padding: 12px 14px;
-          border: 1px solid rgba(246,196,0,.35);
-          border-radius: 18px;
-          text-align: right;
-          background: rgba(255,255,255,.06);
-        }
-
-        .quote-id span {
-          display: block;
-          color: #d9d0ba;
-          font-size: 11px;
-          text-transform: uppercase;
-        }
-
-        .quote-id b {
-          display: block;
-          margin-top: 4px;
-          color: #f6c400;
-          font-size: 20px;
-        }
-
-        .section {
-          margin-top: 18px;
-          padding: 20px;
-          border: 1px solid #e3d6b8;
-          border-radius: 22px;
-          background: rgba(255,255,255,.78);
-        }
-
-        .grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-        }
-
-        .info {
-          padding: 12px 14px;
-          border-radius: 14px;
-          background: #fff8e7;
-          border: 1px solid #eadbb8;
-        }
-
-        .info span {
-          display: block;
-          margin-bottom: 4px;
-          color: #766b55;
-          font-size: 11px;
-          font-weight: 800;
-          text-transform: uppercase;
-        }
-
-        .info b {
-          color: #211f19;
-          font-size: 14px;
-        }
-
-        .notes {
-          margin-top: 12px;
-          padding: 14px;
+        .quote-print-note {
+          margin: 18px 0 0;
+          padding: 14px 16px;
           border-left: 5px solid #f6c400;
           border-radius: 14px;
-          background: #fff5d6;
-          color: #4b432f;
+          background: #fff9df;
+          color: #4d4636;
           line-height: 1.45;
         }
 
-        table {
-          width: 100%;
-          border-collapse: separate;
-          border-spacing: 0;
-          overflow: hidden;
-          margin-top: 14px;
-          border: 1px solid #dfd1ad;
-          border-radius: 18px;
-        }
-
-        th, td {
-          padding: 12px;
-          text-align: left;
-          border-bottom: 1px solid #eadfca;
-        }
-
-        th {
-          color: #171511;
-          background: #f6c400;
-          font-size: 12px;
-          text-transform: uppercase;
-        }
-
-        tr:last-child td { border-bottom: 0; }
-        td.num, th.num { text-align: right; }
-
-        .total {
+        .quote-print-total {
           display: flex;
-          justify-content: flex-end;
+          justify-content: space-between;
           align-items: center;
-          gap: 16px;
+          gap: 18px;
           margin-top: 18px;
-          padding: 16px 18px;
+          padding: 18px;
           border-radius: 18px;
-          color: #fff;
-          background: #171511;
+          background: #fafafa;
+          border: 1px solid #eee;
         }
 
-        .total span {
-          color: #e5dcc3;
-          font-weight: 700;
+        .quote-print-total span {
+          color: #666;
+          font-weight: 900;
+          text-transform: uppercase;
+          font-size: 12px;
         }
 
-        .total b {
-          color: #f6c400;
-          font-size: 28px;
+        .quote-print-total b {
+          color: #1c1c1c;
+          font-size: 30px;
         }
 
-        .footer {
+        .quote-print-footer {
           display: flex;
           justify-content: space-between;
           gap: 16px;
           margin-top: 18px;
-          color: #6d624f;
+          color: #666;
           font-size: 12px;
         }
 
         @media print {
-          .proposal { padding: 0; background: #fffaf0; }
-          .hero, .section { box-shadow: none; }
+          .quote-print-shell { padding: 0; }
+          .quote-print-shell .report-page { max-width: none; }
         }
       </style>
     </head>
     <body>
-      <main class="proposal">
-        <header class="hero">
-          <img class="brand-logo" src="${logoUrl}" alt="Logo Quintal do Zé">
-          <div>
-            <span class="eyebrow">Proposta comercial</span>
-            <h1>Orçamento Quintal do Zé</h1>
-            <p>Café da tarde, happy hour, coffee break e eventos personalizados.</p>
+      <main class="quote-print-shell">
+        <section class="report-page">
+          <div class="report-head">
+            <div>
+              <h1>Orçamento Quintal do Zé</h1>
+              <p>Proposta comercial • ${generatedAt}</p>
+              <p class="muted">Nº ${escapeHtml(quoteNumber)} • ${escapeHtml(details || 'Evento sem data definida')}</p>
+            </div>
+            <img src="/assets/logo.jpg" alt="Logo Quintal do Zé">
           </div>
-          <div class="quote-id">
-            <span>Orçamento</span>
-            <b>#${escapeHtml(quoteNumber)}</b>
-          </div>
-        </header>
 
-        <section class="section">
-          <div class="grid">
-            <div class="info"><span>Cliente</span><b>${escapeHtml(quote.clientName)}</b></div>
-            <div class="info"><span>Contato</span><b>${escapeHtml(quote.phone || '-')}</b></div>
-            <div class="info"><span>Evento</span><b>${escapeHtml(quote.eventType)}</b></div>
-            <div class="info"><span>Status</span><b>${escapeHtml(quoteStatusLabel(quote.status))}</b></div>
-            <div class="info"><span>Data e horário</span><b>${quoteDate(quote.eventDate)} ${escapeHtml(quote.eventTime || '')}</b></div>
-            <div class="info"><span>Pessoas</span><b>${Number(quote.guests || 0) || '-'}</b></div>
-            <div class="info"><span>Local</span><b>${escapeHtml(quote.location || '-')}</b></div>
-            <div class="info"><span>Emitido em</span><b>${generatedAt}</b></div>
+          <div class="grid g4">
+            <div class="metric"><span>Cliente</span><b>${escapeHtml(quote.clientName)}</b></div>
+            <div class="metric"><span>Contato</span><b>${escapeHtml(quote.phone || '-')}</b></div>
+            <div class="metric"><span>Evento</span><b>${escapeHtml(quote.eventType || '-')}</b></div>
+            <div class="metric"><span>Status</span><b>${escapeHtml(quoteStatusLabel(quote.status))}</b></div>
           </div>
-          ${quote.notes ? `<p class="notes">${escapeHtml(quote.notes)}</p>` : ''}
-        </section>
 
-        <section class="section">
-          <h2>Itens da proposta</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th class="num">Qtd.</th>
-                <th class="num">Valor unit.</th>
-                <th class="num">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(quote.items || []).map((item) => `
+          <div class="grid g4" style="margin-top:18px">
+            <div class="metric"><span>Data</span><b>${quoteDate(quote.eventDate)}</b></div>
+            <div class="metric"><span>Horário</span><b>${escapeHtml(quote.eventTime || '-')}</b></div>
+            <div class="metric"><span>Pessoas</span><b>${Number(quote.guests || 0) || '-'}</b></div>
+            <div class="metric"><span>Local</span><b>${escapeHtml(quote.location || '-')}</b></div>
+          </div>
+
+          ${quote.notes ? `<p class="quote-print-note">${escapeHtml(quote.notes)}</p>` : ''}
+
+          <h2 style="margin-top:24px">Itens do orçamento</h2>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
                 <tr>
-                  <td>${escapeHtml(item.description)}</td>
-                  <td class="num">${Number(item.qty || 0)}</td>
-                  <td class="num">${money(item.unitPrice)}</td>
-                  <td class="num">${money(Number(item.qty || 0) * Number(item.unitPrice || 0))}</td>
+                  <th>Item</th>
+                  <th>Qtd.</th>
+                  <th>Valor unit.</th>
+                  <th>Total</th>
                 </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          <div class="total">
+              </thead>
+              <tbody>
+                ${(quote.items || []).map((item) => `
+                  <tr>
+                    <td>${escapeHtml(item.description)}</td>
+                    <td>${Number(item.qty || 0)}</td>
+                    <td>${money(item.unitPrice)}</td>
+                    <td>${money(Number(item.qty || 0) * Number(item.unitPrice || 0))}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="quote-print-total">
             <span>Total do orçamento</span>
             <b>${money(quote.total)}</b>
           </div>
-        </section>
 
-        <footer class="footer">
-          <span>Quintal do Zé</span>
-          <span>Orçamento gerado pelo sistema de pedidos.</span>
-        </footer>
+          <div class="quote-print-footer">
+            <span>Quintal do Zé</span>
+            <span>Documento gerado pelo sistema de pedidos.</span>
+          </div>
+        </section>
       </main>
       <script>
+        let printed = false;
         const startPrint = () => {
+          if (printed) return;
+          printed = true;
           window.focus();
-          setTimeout(() => window.print(), 250);
+          setTimeout(() => window.print(), 350);
         };
-        const logo = document.querySelector('.brand-logo');
-        if (logo && !logo.complete) {
-          logo.addEventListener('load', startPrint, { once: true });
-          logo.addEventListener('error', startPrint, { once: true });
-        } else {
-          startPrint();
+        const logo = document.querySelector('.report-head img');
+        const stylesheet = document.querySelector('link[rel="stylesheet"]');
+        let pending = 0;
+        const done = () => {
+          pending -= 1;
+          if (pending <= 0) startPrint();
+        };
+        if (stylesheet) {
+          pending += 1;
+          stylesheet.addEventListener('load', done, { once: true });
+          stylesheet.addEventListener('error', done, { once: true });
         }
+        if (logo && !logo.complete) {
+          pending += 1;
+          logo.addEventListener('load', done, { once: true });
+          logo.addEventListener('error', done, { once: true });
+        }
+        if (!pending) startPrint();
+        setTimeout(() => {
+          if (pending > 0) startPrint();
+        }, 900);
       <\/script>
     </body>
     </html>
