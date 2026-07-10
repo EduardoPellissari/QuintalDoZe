@@ -799,6 +799,8 @@ window.printQuote = async (id) => {
     details: escapeHtml(details),
     metricsHtml,
     bodyHtml,
+    referenceLabel: 'Orçamento',
+    referenceText: `#${quoteNumber}`,
     blockedMessage: 'Permita pop-ups para imprimir o orçamento.',
   });
 };

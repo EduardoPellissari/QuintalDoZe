@@ -75,6 +75,8 @@ function openReportPrintDocument({
   bodyHtml = '',
   footerLeft = 'Quintal do Zé',
   footerRight = 'Documento gerado pelo sistema de pedidos.',
+  referenceLabel = 'Documento',
+  referenceText = documentTitle,
   blockedMessage = 'Permita pop-ups para gerar o PDF.',
 }) {
   const printWindow = window.open('', '_blank');
@@ -93,102 +95,222 @@ function openReportPrintDocument({
       <title>${documentTitle}</title>
       <link rel="stylesheet" href="/styles.css">
       <style>
-        @page { size: A4; margin: 14mm; }
+        @page { size: A4; margin: 12mm; }
+
+        * { box-sizing: border-box; }
 
         body {
           margin: 0;
-          background: #fff;
-          color: #1c1c1c;
+          color: #171511;
+          background: #f4ead3;
           font-family: Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
 
         .pdf-print-shell {
+          min-height: 100vh;
           padding: 28px;
-          background: #fff;
+          background:
+            radial-gradient(circle at 8% 2%, rgba(246,196,0,.28), transparent 30%),
+            linear-gradient(180deg, #fff8e6 0%, #f6edd6 54%, #fffaf0 100%);
         }
 
         .pdf-print-shell .report-page {
           margin: 0 auto;
           max-width: 980px;
-          box-shadow: none;
+          padding: 28px;
+          border: 1px solid rgba(185,146,31,.22);
+          border-radius: 28px;
+          background:
+            radial-gradient(circle at 0% 0%, rgba(246,196,0,.18), transparent 28%),
+            rgba(255,250,238,.92);
+          box-shadow: 0 24px 70px rgba(72,54,16,.14);
         }
 
         .pdf-print-shell .report-head {
-          border-bottom: 2px solid #eee;
+          display: grid;
+          grid-template-columns: 88px minmax(0, 1fr) auto;
+          gap: 18px;
+          align-items: center;
+          margin: 0 0 22px;
+          padding: 20px;
+          border: 1px solid rgba(246,196,0,.3);
+          border-radius: 24px;
+          color: #fff7d7;
+          background:
+            radial-gradient(circle at 14% 18%, rgba(246,196,0,.23), transparent 28%),
+            linear-gradient(135deg, #11100d, #1b1710 70%, #0a0a0a);
+          box-shadow: 0 16px 38px rgba(26,18,6,.22);
+        }
+
+        .pdf-print-shell .report-head img {
+          width: 88px;
+          height: 88px;
+          object-fit: cover;
+          border-radius: 22px;
+          border: 2px solid rgba(246,196,0,.65);
+          background: #f6c400;
+          box-shadow: 0 12px 24px rgba(0,0,0,.28);
         }
 
         .pdf-print-shell .report-head h1 {
-          color: #1c1c1c;
-          margin: 0 0 8px;
+          margin: 8px 0 8px;
+          color: #fff4c2;
+          font-size: 29px;
+          line-height: 1;
+          letter-spacing: -.04em;
+        }
+
+        .pdf-print-kicker {
+          display: inline-flex;
+          width: fit-content;
+          padding: 6px 10px;
+          border-radius: 999px;
+          color: #1b1607;
+          background: linear-gradient(135deg, #f6c400, #ffdf57);
+          font-size: 11px;
+          font-weight: 950;
+          letter-spacing: .06em;
+          text-transform: uppercase;
         }
 
         .pdf-print-shell .report-head p,
         .pdf-print-shell .muted {
-          color: #666;
+          color: #dfd2ad;
+        }
+
+        .pdf-print-reference {
+          min-width: 126px;
+          padding: 12px 14px;
+          border: 1px solid rgba(246,196,0,.28);
+          border-radius: 18px;
+          text-align: right;
+          background: rgba(255,255,255,.06);
+        }
+
+        .pdf-print-reference span {
+          display: block;
+          color: #cfc3a4;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+        }
+
+        .pdf-print-reference b {
+          display: block;
+          margin-top: 4px;
+          color: #f6c400;
+          font-size: 15px;
+          line-height: 1.15;
+        }
+
+        .pdf-print-shell .grid {
+          gap: 12px;
         }
 
         .pdf-print-shell .metric {
-          color: #1c1c1c;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          justify-content: center;
+          min-height: 74px;
+          color: #171511;
+          background: rgba(255,246,218,.78);
+          border: 1px solid rgba(156,122,28,.26);
+          border-radius: 18px;
+          padding: 14px 16px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
         }
 
         .pdf-print-shell .metric span {
-          color: #666;
-          font-weight: 800;
+          display: block;
+          margin-bottom: 6px;
+          color: #6f6041;
+          font-size: 11px;
+          font-weight: 950;
+          letter-spacing: .04em;
+          text-transform: uppercase;
         }
 
         .pdf-print-shell .metric b,
         .pdf-print-shell .price {
           color: #1c1c1c;
+          font-size: 15px;
+        }
+
+        .pdf-print-shell h2 {
+          margin: 24px 0 12px;
+          color: #1c1c1c;
+          font-size: 23px;
+          letter-spacing: -.03em;
+        }
+
+        .pdf-print-shell .table-wrap {
+          overflow: hidden;
+          border: 1px solid rgba(156,122,28,.23);
+          border-radius: 18px;
+          background: rgba(255,255,255,.72);
         }
 
         .pdf-print-shell .table {
+          width: 100%;
           min-width: 0;
+          border-collapse: collapse;
         }
 
         .pdf-print-shell .table th {
-          color: #1c1c1c;
-          background: #f6c400;
-          border-bottom-color: #e2b600;
+          color: #171511;
+          background: linear-gradient(135deg, #f6c400, #ffda45);
+          border-bottom: 1px solid #deb107;
+          font-size: 11px;
+          text-transform: uppercase;
         }
 
         .pdf-print-shell .table td {
           color: #1c1c1c;
-          border-bottom-color: #eee;
+          border-bottom: 1px solid rgba(156,122,28,.17);
+          background: rgba(255,255,255,.5);
+        }
+
+        .pdf-print-shell .table tr:last-child td {
+          border-bottom: 0;
         }
 
         .pdf-print-note {
           margin: 18px 0 0;
           padding: 14px 16px;
           border-left: 5px solid #f6c400;
-          border-radius: 14px;
-          background: #fff9df;
+          border-radius: 16px;
+          background: rgba(255,246,218,.86);
           color: #4d4636;
           line-height: 1.45;
         }
 
         .pdf-print-total {
           display: flex;
-          justify-content: space-between;
+          justify-content: flex-end;
           align-items: center;
-          gap: 18px;
+          gap: 20px;
           margin-top: 18px;
-          padding: 18px;
+          padding: 18px 22px;
           border-radius: 18px;
-          background: #fafafa;
-          border: 1px solid #eee;
+          color: #fff7d7;
+          background:
+            radial-gradient(circle at 18% 0%, rgba(246,196,0,.22), transparent 26%),
+            linear-gradient(135deg, #11100d, #1b1710 72%, #0a0a0a);
+          border: 1px solid rgba(246,196,0,.25);
+          box-shadow: 0 14px 28px rgba(33,24,8,.16);
         }
 
         .pdf-print-total span {
-          color: #666;
-          font-weight: 900;
-          text-transform: uppercase;
-          font-size: 12px;
+          color: #e7dcc2;
+          font-weight: 850;
         }
 
         .pdf-print-total b {
-          color: #1c1c1c;
+          color: #f6c400;
           font-size: 30px;
         }
 
@@ -197,13 +319,24 @@ function openReportPrintDocument({
           justify-content: space-between;
           gap: 16px;
           margin-top: 18px;
-          color: #666;
+          color: #7b6d51;
           font-size: 12px;
         }
 
         @media print {
-          .pdf-print-shell { padding: 0; }
-          .pdf-print-shell .report-page { max-width: none; }
+          .pdf-print-shell {
+            min-height: auto;
+            padding: 0;
+            background: #fffaf0;
+          }
+
+          .pdf-print-shell .report-page {
+            max-width: none;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+          }
         }
       </style>
     </head>
@@ -211,12 +344,16 @@ function openReportPrintDocument({
       <main class="pdf-print-shell">
         <section class="report-page">
           <div class="report-head">
+            <img src="/assets/logo.jpg" alt="Logo Quintal do Zé">
             <div>
+              <span class="pdf-print-kicker">${subtitle}</span>
               <h1>${heading}</h1>
-              <p>${subtitle}</p>
               ${details ? `<p class="muted">${details}</p>` : ''}
             </div>
-            <img src="/assets/logo.jpg" alt="Logo Quintal do Zé">
+            <div class="pdf-print-reference">
+              <span>${referenceLabel}</span>
+              <b>${referenceText}</b>
+            </div>
           </div>
 
           ${metricsHtml}
@@ -287,6 +424,8 @@ function printVisibleReportDocument() {
     heading,
     subtitle,
     details,
+    referenceLabel: 'Relatório',
+    referenceText: 'Fechamento',
     bodyHtml: clone.innerHTML,
     blockedMessage: 'Permita pop-ups para imprimir o relatório.',
   });
