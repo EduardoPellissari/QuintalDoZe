@@ -392,12 +392,41 @@ function tableSummaryCards(openOrders, selectedTable, selectFunctionName) {
   `;
 }
 
-function tableMapPanel(openOrders, selectedTable, selectFunctionName) {
+function tableMapPanel(openOrders, selectedTable, selectFunctionName, options = {}) {
   const groups = groupOrdersByTable(openOrders);
   const groupMap = new Map(groups.map((group) => [group.table, group]));
   const configured = configuredRestaurantTables();
+  const includeFreeTables = options.includeFreeTables !== false;
+  const baseTables = includeFreeTables ? configured : configured.filter((table) => groupMap.has(table));
   const extras = groups.map((group) => group.table).filter((table) => !configured.includes(table));
-  const tables = [...configured, ...extras];
+
+  const statusForGroup = (group) => {
+    if (!group) return { key: 'free', label: 'Livre' };
+    if (group.orders.every((order) => order.status === 'pronto')) return { key: 'ready', label: 'Pronta' };
+    if (group.orders.some((order) => ['pendente', 'preparando'].includes(order.status))) return { key: 'kitchen', label: 'Cozinha' };
+    return { key: 'open', label: 'Aberta' };
+  };
+
+  const statusRank = { ready: 0, kitchen: 1, open: 2, free: 3 };
+  const tableSortValue = (table) => {
+    const status = statusForGroup(groupMap.get(table));
+    const numeric = Number(table);
+    return {
+      status: statusRank[status.key] ?? 9,
+      numeric: Number.isFinite(numeric) ? numeric : 9999,
+      label: String(table),
+    };
+  };
+
+  const tables = [...baseTables, ...extras].sort((a, b) => {
+    const left = tableSortValue(a);
+    const right = tableSortValue(b);
+    if (left.status !== right.status) return left.status - right.status;
+    if (left.numeric !== right.numeric) return left.numeric - right.numeric;
+    return left.label.localeCompare(right.label, 'pt-BR');
+  });
+
+  if (!tables.length) return '<p class="muted">Nenhuma mesa/comanda ocupada no momento.</p>';
 
   const mapLabel = (table) => {
     const value = String(table || '');
@@ -426,13 +455,7 @@ function tableMapPanel(openOrders, selectedTable, selectFunctionName) {
         const group = groupMap.get(table);
         const active = tableKey(selectedTable) === table;
         const label = mapLabel(table);
-        const status = !group
-          ? { key: 'free', label: 'Livre' }
-          : group.orders.every((order) => order.status === 'pronto')
-            ? { key: 'ready', label: 'Pronta' }
-            : group.orders.some((order) => ['pendente', 'preparando'].includes(order.status))
-              ? { key: 'kitchen', label: 'Cozinha' }
-              : { key: 'open', label: 'Aberta' };
+        const status = statusForGroup(group);
 
         return `
           <button
@@ -1355,6 +1378,10 @@ function setupNav(items) {
   nav.innerHTML = items
     .map((item) => {
       const label = item.labelKey ? txt(item.labelKey, item.label || '') : item.label;
+
+      if (item.type === 'group') {
+        return `<span class="nav-group">${label}</span>`;
+      }
 
       if (item.type === 'button') {
         return `<button type="button" class="${item.active ? 'active' : ''}" data-tab="${item.tab}">${label}</button>`;

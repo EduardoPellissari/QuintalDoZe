@@ -17,6 +17,15 @@ setText('loginAccessGarcom', txt('login.acessoGarcom', 'Garçom: garcom@quintald
 setText('loginAccessCozinha', txt('login.acessoCozinha', 'Cozinha: cozinha@quintaldoze.local / quintaldoze123'));
 setText('loginAccessCaixa', txt('login.acessoCaixa', 'Caixa: caixa@quintaldoze.local / quintaldoze123'));
 
+const lastLoginEmail = localStorage.getItem('qz_last_login_email') || '';
+const lastLoginRole = localStorage.getItem('qz_last_login_role') || '';
+const loginEmailInput = document.getElementById('loginEmail');
+
+if (lastLoginEmail && loginEmailInput) {
+  loginEmailInput.value = lastLoginEmail;
+  setText('loginSubtitle', `Último acesso: ${lastLoginEmail}${lastLoginRole ? ` (${roleLabel(lastLoginRole)})` : ''}`);
+}
+
 document.getElementById('loginForm').addEventListener('submit', async (event) => {
   event.preventDefault();
 
@@ -28,6 +37,8 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
 
   try {
     const user = await API.post('/api/login', { email, password });
+    localStorage.setItem('qz_last_login_email', email);
+    localStorage.setItem('qz_last_login_role', user.role || '');
     setUser(user);
 
     const routes = {

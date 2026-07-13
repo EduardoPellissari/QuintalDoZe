@@ -16,6 +16,7 @@ let lastIds = new Set();
 let soundEnabled = false;
 let urgentNotifiedIds = new Set();
 let kitchenOptionsOpen = false;
+let showAllReady = false;
 
 function playTone(frequency = 880, duration = 180, volume = 0.08) {
   if (!soundEnabled) return;
@@ -166,6 +167,9 @@ async function render() {
   const pendentes = orderByPriority(orders.filter((order) => order.status === 'pendente'));
   const preparando = orderByPriority(orders.filter((order) => order.status === 'preparando'));
   const prontos = orderByPriority(orders.filter((order) => order.status === 'pronto'));
+  const readyLimit = 4;
+  const visibleProntos = showAllReady ? prontos : prontos.slice(0, readyLimit);
+  const hiddenReadyCount = Math.max(prontos.length - visibleProntos.length, 0);
 
   document.getElementById('content').innerHTML = `
     <section class="kitchen-dashboard kitchen-pro-dashboard">
@@ -196,7 +200,7 @@ async function render() {
             <strong>${pendentes.length}</strong>
           </div>
           <div class="orders-list">
-            ${pendentes.length ? pendentes.map(card).join('') : emptyColumn('Nenhum pedido novo')}
+            ${pendentes.length ? pendentes.map((order, index) => card(order, index === 0)).join('') : emptyColumn('Nenhum pedido novo')}
           </div>
         </div>
 
@@ -219,10 +223,14 @@ async function render() {
               <h3>🟢 ${txt('cozinha.abaProntos', 'Prontos')}</h3>
               <p class="muted">${txt('cozinha.abaProntosSub', 'Pedidos prontos para retirada')}</p>
             </div>
-            <strong>${prontos.length}</strong>
+            <div class="column-header-actions">
+              ${prontos.length > readyLimit ? `<button class="soft column-toggle" type="button" onclick="toggleReadyList()">${showAllReady ? 'Mostrar menos' : `Mostrar todos (${prontos.length})`}</button>` : ''}
+              <strong>${prontos.length}</strong>
+            </div>
           </div>
           <div class="orders-list">
-            ${prontos.length ? prontos.map(card).join('') : emptyColumn('Nenhum pedido pronto')}
+            ${visibleProntos.length ? visibleProntos.map(card).join('') : emptyColumn('Nenhum pedido pronto')}
+            ${hiddenReadyCount ? `<div class="ready-hidden-note">${hiddenReadyCount} pedido(s) pronto(s) ocultos para manter a tela limpa.</div>` : ''}
           </div>
         </div>
       </section>
@@ -263,13 +271,14 @@ function emptyState(tab) {
   `;
 }
 
-function card(order) {
+function card(order, isNext = false) {
   const cls = 'status-' + order.status;
   const waiting = waitingLabel(order.createdAt);
   const priority = getPriority(order);
 
   return `
-    <article class="kitchen-card kitchen-pro-card ${cls} priority-${priority.level}">
+    <article class="kitchen-card kitchen-pro-card ${cls} priority-${priority.level} ${isNext ? 'next-order' : ''}">
+      ${isNext ? '<div class="next-order-label">Próximo pedido para iniciar</div>' : ''}
       <div class="kitchen-card-top">
         <div>
           <span class="kitchen-label">${txt('cozinha.mesaComanda', 'Mesa/Comanda')}</span>
@@ -357,6 +366,10 @@ async function statusOrder(id, status) {
 }
 
 window.statusOrder = statusOrder;
+window.toggleReadyList = () => {
+  showAllReady = !showAllReady;
+  render();
+};
 
 render();
 setInterval(render, 1000);

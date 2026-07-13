@@ -6,11 +6,14 @@
 requireRole(['admin']);
 
 setupNav([
+  { type: 'group', label: 'Configuração' },
   { type: 'button', tab: 'users', labelKey: 'menu.usuarios', active: true },
   { type: 'button', tab: 'products', labelKey: 'menu.produtos' },
   { type: 'button', tab: 'quotes', label: '📋 Orçamentos' },
+  { type: 'group', label: 'Operação' },
   { type: 'button', tab: 'cash', labelKey: 'menu.caixa' },
   { type: 'button', tab: 'reports', labelKey: 'menu.relatorios' },
+  { type: 'group', label: 'Atalhos' },
   { href: '/garcom.html', labelKey: 'menu.pedidos' },
   { href: '/cozinha.html', labelKey: 'menu.cozinha' },
 ]);
@@ -326,7 +329,7 @@ async function renderProducts() {
                   <td>
                     <div class="actions">
                       <button class="soft" onclick="editProduct(${product.id})">Editar</button>
-                      ${productUsageValue(product) === 'orders' ? `<button class="soft" onclick="toggleSoldOut(${product.id}, ${product.soldOut === true ? 'false' : 'true'})">${product.soldOut === true ? 'Disponibilizar' : 'Esgotar'}</button>` : ''}
+                      ${productUsageValue(product) === 'orders' ? `<button class="${product.soldOut === true ? 'soft' : 'danger'} quick-soldout-button" onclick="toggleSoldOut(${product.id}, ${product.soldOut === true ? 'false' : 'true'})">${product.soldOut === true ? 'Disponibilizar' : 'Esgotar'}</button>` : ''}
                       <button class="danger" onclick="deleteProduct(${product.id})">Excluir</button>
                     </div>
                   </td>
@@ -892,7 +895,7 @@ async function renderCash() {
       <div class="admin-form-head compact-head">
         <div>
           <h3>${txt('admin.caixa.painelTitulo', 'Caixa')}</h3>
-          <p>Escolha a mesa na esquerda e finalize a conta na direita.</p>
+          <p>Escolha a mesa no mapa e finalize a conta na direita.</p>
         </div>
         <span class="badge ok">${txt('admin.caixa.badge', 'Acesso admin')}</span>
       </div>
@@ -904,15 +907,7 @@ async function renderCash() {
               <h4>Mapa das mesas</h4>
               <span>${occupiedTables} ocupada(s)</span>
             </div>
-            ${tableMapPanel(restaurantOrders, selectedAdminCashTable, 'selectAdminCashTable')}
-          </div>
-
-          <div class="cash-block">
-            <div class="section-mini-head">
-              <h4>Mesas abertas</h4>
-              <span>Selecione para fechar</span>
-            </div>
-            ${tableSummaryCards(restaurantOrders, selectedAdminCashTable, 'selectAdminCashTable')}
+            ${tableMapPanel(restaurantOrders, selectedAdminCashTable, 'selectAdminCashTable', { includeFreeTables: false })}
           </div>
         </div>
 

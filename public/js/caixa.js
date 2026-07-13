@@ -74,7 +74,7 @@ async function cash() {
       <div class="admin-form-head compact-head">
         <div>
           <h3>Fechar mesa/comanda</h3>
-          <p>Escolha a mesa na esquerda e finalize a conta na direita.</p>
+          <p>Escolha a mesa no mapa e finalize a conta na direita.</p>
         </div>
         <span class="badge ok">Caixa</span>
       </div>
@@ -86,15 +86,7 @@ async function cash() {
               <h4>Mapa das mesas</h4>
               <span>${occupiedTables} ocupada(s)</span>
             </div>
-            ${tableMapPanel(restaurantOrders, selectedCashTable, 'selectCashTable')}
-          </div>
-
-          <div class="cash-block">
-            <div class="section-mini-head">
-              <h4>Mesas abertas</h4>
-              <span>Selecione para fechar</span>
-            </div>
-            ${tableSummaryCards(restaurantOrders, selectedCashTable, 'selectCashTable')}
+            ${tableMapPanel(restaurantOrders, selectedCashTable, 'selectCashTable', { includeFreeTables: false })}
           </div>
         </div>
 

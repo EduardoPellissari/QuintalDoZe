@@ -14,6 +14,7 @@ setText('pageSub', txt('garcom.subtitulo', 'Crie comandas para enviar à cozinha
 let products = [];
 let cart = [];
 let selectedCategory = txt('garcom.todos', 'Todos');
+let productSearch = '';
 let openOrders = [];
 let customizingItemId = null;
 
@@ -40,9 +41,23 @@ function getCategories() {
   return [txt('garcom.todos', 'Todos'), ...Array.from(new Set(categories)).sort((a, b) => a.localeCompare(b, 'pt-BR'))];
 }
 
+function searchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
 function getFilteredProducts() {
-  if (selectedCategory === txt('garcom.todos', 'Todos')) return products;
-  return products.filter((product) => ((product.category || txt('garcom.geral', 'Geral')).trim() || txt('garcom.geral', 'Geral')) === selectedCategory);
+  const selectedAll = selectedCategory === txt('garcom.todos', 'Todos');
+  const search = searchText(productSearch);
+
+  return products.filter((product) => {
+    const category = (product.category || txt('garcom.geral', 'Geral')).trim() || txt('garcom.geral', 'Geral');
+    const matchesCategory = selectedAll || category === selectedCategory;
+    const matchesSearch = !search || searchText(`${product.name || ''} ${category} ${product.description || ''}`).includes(search);
+    return matchesCategory && matchesSearch;
+  });
 }
 
 function add(id) {
@@ -72,6 +87,11 @@ function dec(id) {
 
 function selectCategory(category) {
   selectedCategory = category;
+  renderMenu();
+}
+
+function updateProductSearch(value) {
+  productSearch = value;
   renderMenu();
 }
 
@@ -401,6 +421,10 @@ function render() {
           </div>
         </div>
 
+        <div class="waiter-search-box">
+          <input id="productSearch" type="search" placeholder="Buscar produto..." value="${htmlAttr(productSearch)}" oninput="updateProductSearch(this.value)">
+        </div>
+
         <div id="categoryMenu" class="category-menu"></div>
         <div id="menuGrid" class="menu-grid"></div>
       </section>
@@ -430,8 +454,6 @@ function render() {
           </details>
 
           <div id="cart"></div>
-
-          <button class="primary" type="submit">${txt('garcom.enviar', 'Enviar para cozinha')}</button>
         </form>
       </section>
     </div>
@@ -454,32 +476,33 @@ function renderMenu() {
   const filteredProducts = getFilteredProducts();
 
   categoryMenu.innerHTML = categories
-    .map((category) => `
-      <button
-        type="button"
-        class="category-pill ${category === selectedCategory ? 'active' : ''}"
-        onclick="selectCategory('${category.replace(/'/g, "\\'")}')"
-      >
-        ${category}
-      </button>
-    `)
+    .map((category) => {
+      const encodedCategory = encodeURIComponent(category).replace(/'/g, '%27');
+      return `
+        <button
+          type="button"
+          class="category-pill ${category === selectedCategory ? 'active' : ''}"
+          onclick="selectCategory(decodeURIComponent('${encodedCategory}'))"
+        >
+          ${htmlAttr(category)}
+        </button>
+      `;
+    })
     .join('');
 
   menuGrid.innerHTML = filteredProducts.length
     ? filteredProducts.map((product) => `
-      <div class="item menu-product-card">
-        <div>
-          <b>${product.name}</b>
-          <small class="muted">${product.category || txt('garcom.geral', 'Geral')}</small>
-        </div>
+      <button class="item menu-product-card pdv-product-card" type="button" onclick="add('${htmlAttr(productId(product.id))}')">
+        <span class="pdv-product-info">
+          <b>${htmlAttr(product.name)}</b>
+          <small class="muted">${htmlAttr(product.category || txt('garcom.geral', 'Geral'))}</small>
+        </span>
 
-        ${product.description ? `<p>${product.description}</p>` : `<p class="muted">${txt('garcom.semDescricao', 'Sem descrição cadastrada.')}</p>`}
-
-        <div class="cart-line">
-          <span class="price">${money(product.price)}</span>
-          <button class="soft" type="button" onclick="add('${productId(product.id)}')">${txt('garcom.adicionar', 'Adicionar')}</button>
-        </div>
-      </div>
+        <span class="pdv-product-bottom">
+          <strong class="price">${money(product.price)}</strong>
+          <em>${txt('garcom.adicionar', 'Adicionar')}</em>
+        </span>
+      </button>
     `).join('')
     : `
       <div class="panel empty-menu-category">
@@ -517,9 +540,12 @@ function renderCart() {
       </button>
     `).join('') : `<p class="muted">${txt('garcom.nenhumItem', 'Nenhum item adicionado.')}</p>`}
 
-    <div class="metric" style="margin-top:12px">
-      <b>${txt('garcom.total', 'Total')}</b>
-      <b class="price">${money(total)}</b>
+    <div class="cart-submit-bar">
+      <div>
+        <span>${txt('garcom.total', 'Total')}</span>
+        <b class="price">${money(total)}</b>
+      </div>
+      <button class="primary" type="submit" ${cart.length ? '' : 'disabled'}>${txt('garcom.enviar', 'Enviar para cozinha')}</button>
     </div>
   `;
 }
@@ -557,6 +583,7 @@ async function send(event) {
 }
 
 window.selectTableSuggestion = selectTableSuggestion;
+window.updateProductSearch = updateProductSearch;
 window.updateCartItem = updateCartItem;
 window.openCustomizeItem = openCustomizeItem;
 window.closeCustomizeItem = closeCustomizeItem;
