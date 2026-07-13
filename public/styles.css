@@ -1440,7 +1440,7 @@ textarea {
   display:grid;
   grid-template-columns:auto 1fr;
   gap:10px;
-  align-items:center;
+  align-items:start;
   padding:12px;
   background:rgba(0,0,0,.2);
   border:1px solid rgba(255,255,255,.08);
@@ -1451,6 +1451,31 @@ textarea {
   min-width:42px;
   color:var(--gold);
   font-size:18px
+}
+
+.kitchen-items li > span {
+  min-width:0;
+  display:block;
+  line-height:1.35
+}
+
+.kitchen-items .item-detail-list {
+  display:grid;
+  gap:6px;
+  margin-top:9px
+}
+
+.kitchen-items .item-detail-chip {
+  width:100%;
+  align-items:flex-start;
+  justify-content:flex-start;
+  border-radius:12px;
+  padding:8px 10px;
+  white-space:normal
+}
+
+.kitchen-items .item-detail-chip span {
+  display:block
 }
 
 .kitchen-notes {

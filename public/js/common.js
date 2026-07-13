@@ -125,10 +125,11 @@ function itemLineTotal(item) {
   return itemUnitPrice(item) * Number(item?.qty || 1);
 }
 
-function itemDetailsHtml(item) {
+function itemDetailsHtml(item, options = {}) {
+  const showExtraPrice = options.showExtraPrice !== false;
   const details = [
     item?.note ? { type: 'note', label: 'Personalização', value: htmlAttr(item.note) } : null,
-    itemExtraPrice(item) ? { type: 'extra', label: 'Acréscimo', value: `${money(itemExtraPrice(item))} por un.` } : null,
+    showExtraPrice && itemExtraPrice(item) ? { type: 'extra', label: 'Acréscimo', value: `${money(itemExtraPrice(item))} por un.` } : null,
   ].filter(Boolean);
 
   return details.length ? `
