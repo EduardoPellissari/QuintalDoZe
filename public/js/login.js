@@ -25,6 +25,7 @@ const savedLoginPassword = localStorage.getItem('qz_saved_login_password') || ''
 const loginEmailInput = document.getElementById('loginEmail');
 const loginPasswordInput = document.getElementById('loginPassword');
 const rememberLoginInput = document.getElementById('rememberLogin');
+const toggleLoginPasswordButton = document.getElementById('toggleLoginPassword');
 
 if (savedLoginEnabled && savedLoginEmail && loginEmailInput) {
   loginEmailInput.value = savedLoginEmail;
@@ -34,6 +35,14 @@ if (savedLoginEnabled && savedLoginEmail && loginEmailInput) {
 } else if (lastLoginEmail && loginEmailInput) {
   loginEmailInput.value = lastLoginEmail;
   setText('loginSubtitle', `Último acesso: ${lastLoginEmail}${lastLoginRole ? ` (${roleLabel(lastLoginRole)})` : ''}`);
+}
+
+if (toggleLoginPasswordButton && loginPasswordInput) {
+  toggleLoginPasswordButton.onclick = () => {
+    const visible = loginPasswordInput.type === 'text';
+    loginPasswordInput.type = visible ? 'password' : 'text';
+    toggleLoginPasswordButton.textContent = visible ? 'Mostrar' : 'Ocultar';
+  };
 }
 
 document.getElementById('loginForm').addEventListener('submit', async (event) => {

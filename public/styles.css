@@ -69,6 +69,61 @@ button {
   pointer-events:none
 }
 
+.password-action-row {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:7px
+}
+
+.password-action-row input {
+  flex:1;
+  min-width:0;
+  margin-top:0!important
+}
+
+.password-toggle-button,
+.password-generate-button {
+  flex:0 0 auto;
+  min-height:48px;
+  padding:10px 12px;
+  border-radius:13px;
+  white-space:nowrap
+}
+
+.password-generate-button {
+  color:#151515;
+  background:linear-gradient(135deg,var(--gold),var(--gold2));
+  border-color:transparent
+}
+
+.inactive-row {
+  opacity:.62
+}
+
+.inactive-row td {
+  background:rgba(239,68,68,.035)
+}
+
+.access-copy-panel {
+  border-color:rgba(246,196,0,.28);
+  background:linear-gradient(180deg,rgba(246,196,0,.10),rgba(255,255,255,.035))
+}
+
+.access-copy-panel textarea {
+  width:100%;
+  min-height:116px;
+  resize:vertical;
+  color:var(--txt);
+  background:rgba(0,0,0,.34);
+  border:1px solid rgba(246,196,0,.22);
+  border-radius:14px;
+  padding:12px;
+  outline:none;
+  font-weight:800;
+  line-height:1.55
+}
+
 .muted {
   color:var(--muted)
 }

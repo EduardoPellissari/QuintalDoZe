@@ -313,7 +313,7 @@ function cashSalesForDate(db, dateValue) {
 }
 
 function publicUser(user) {
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return { id: user.id, name: user.name, email: user.email, role: user.role, active: user.active !== false };
 }
 
 function getLocalIps() {
@@ -348,6 +348,7 @@ app.post('/api/login', asyncHandler(async (req, res) => {
   const db = await readDb();
   const user = db.users.find((u) => String(u.email).toLowerCase() === email && String(u.password) === password);
   if (!user) return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
+  if (user.active === false) return res.status(403).json({ error: 'Usuário desativado. Fale com o administrador.' });
   res.json(publicUser(user));
 }));
 
@@ -367,7 +368,8 @@ app.post('/api/users', asyncHandler(async (req, res) => {
     name: String(req.body.name || '').trim() || email,
     email,
     password: String(req.body.password),
-    role: String(req.body.role)
+    role: String(req.body.role),
+    active: req.body.active !== false
   };
 
   db.users.push(user);
@@ -389,7 +391,19 @@ app.put('/api/users/:id', asyncHandler(async (req, res) => {
   user.name = String(req.body.name || '').trim() || email;
   user.email = email;
   user.role = String(req.body.role);
+  if (req.body.active !== undefined) user.active = req.body.active !== false;
   if (req.body.password) user.password = String(req.body.password);
+
+  await writeDb(db);
+  res.json(publicUser(user));
+}));
+
+app.put('/api/users/:id/status', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const user = db.users.find((u) => String(u.id) === String(req.params.id));
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+  user.active = req.body.active !== false;
 
   await writeDb(db);
   res.json(publicUser(user));

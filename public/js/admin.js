@@ -25,6 +25,7 @@ setText('pageSub', txt('admin.dashboardSubtitulo', 'Gerencie usuários, produtos
 let editingUser = null;
 let editingProduct = null;
 let editingQuote = null;
+let pendingUserAccess = null;
 let quoteProducts = [];
 let quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
 let adminReportDate = todayDateValue();
@@ -97,7 +98,11 @@ async function renderUsers() {
             </label>
 
             <label>${txt('admin.usuarios.senha', 'Senha')}
-              <input id="uPass" name="newUserPassword" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" placeholder="${editingUser ? txt('admin.usuarios.placeholderSenhaEditar', 'Deixe em branco para manter') : txt('admin.usuarios.placeholderSenhaNova', 'Digite uma senha')}">
+              <div class="password-action-row">
+                <input id="uPass" name="newUserPassword" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" placeholder="${editingUser ? txt('admin.usuarios.placeholderSenhaEditar', 'Deixe em branco para manter') : txt('admin.usuarios.placeholderSenhaNova', 'Digite uma senha')}">
+                <button id="toggleUserPassword" class="soft password-toggle-button" type="button">Mostrar</button>
+                <button id="generateUserPassword" class="soft password-generate-button" type="button">Gerar</button>
+              </div>
             </label>
 
             <label>${txt('admin.usuarios.perfil', 'Perfil')}
@@ -117,6 +122,23 @@ async function renderUsers() {
         </form>
       </section>
 
+      ${pendingUserAccess ? `
+        <section class="panel access-copy-panel">
+          <div class="admin-form-head">
+            <div>
+              <h3>${pendingUserAccess.copied ? 'Acesso copiado' : 'Acesso gerado'}</h3>
+              <p>${pendingUserAccess.copied ? 'O acesso foi copiado automaticamente. Você também pode copiar novamente abaixo.' : 'Não foi possível copiar automaticamente. Copie abaixo antes de fechar.'}</p>
+            </div>
+            <span class="badge ${pendingUserAccess.copied ? 'ok' : 'warn'}">${pendingUserAccess.copied ? 'Copiado' : 'Copiar manualmente'}</span>
+          </div>
+          <textarea id="pendingUserAccessText" readonly>${htmlAttr(pendingUserAccess.text)}</textarea>
+          <div class="form-actions-row">
+            <button class="primary" type="button" onclick="copyPendingUserAccess()">Copiar acesso</button>
+            <button class="soft" type="button" onclick="clearPendingUserAccess()">Ocultar</button>
+          </div>
+        </section>
+      ` : ''}
+
       <section class="panel admin-list-box">
         <div class="admin-form-head">
           <div>
@@ -132,19 +154,21 @@ async function renderUsers() {
                 <th>${txt('admin.usuarios.colNome', 'Nome')}</th>
                 <th>${txt('admin.usuarios.colEmail', 'E-mail')}</th>
                 <th>${txt('admin.usuarios.colPerfil', 'Perfil')}</th>
+                <th>Status</th>
                 <th>${txt('admin.usuarios.colAcoes', 'Ações')}</th>
               </tr>
             </thead>
             <tbody>
               ${users.map((user) => `
-                <tr>
+                <tr class="${user.active === false ? 'inactive-row' : ''}">
                   <td>${user.name || '-'}</td>
                   <td>${user.email}</td>
                   <td><span class="badge">${roleLabel(user.role)}</span></td>
+                  <td>${user.active === false ? '<span class="badge danger">Inativo</span>' : '<span class="badge ok">Ativo</span>'}</td>
                   <td>
                     <div class="actions">
                       <button class="soft" onclick="editUser(${user.id})">${txt('admin.usuarios.botaoSalvar', 'Editar').replace('Salvar alterações', 'Editar')}</button>
-                      <button class="danger" onclick="deleteUser(${user.id})">${txt('pedidos.cancelar', 'Excluir').replace('Cancelar', 'Excluir')}</button>
+                      <button class="${user.active === false ? 'soft' : 'danger'}" onclick="toggleUserActive(${user.id}, ${user.active === false ? 'true' : 'false'})">${user.active === false ? 'Reativar' : 'Desativar'}</button>
                     </div>
                   </td>
                 </tr>
@@ -158,6 +182,7 @@ async function renderUsers() {
 
   if (editingUser) document.getElementById('uRole').value = editingUser.role;
   preventNewUserAutofill();
+  bindUserPasswordTools();
 
   const cancel = document.getElementById('cancelUser');
   if (cancel) {
@@ -194,13 +219,88 @@ function preventNewUserAutofill() {
   setTimeout(clearAutofill, 500);
 }
 
+function bindUserPasswordTools() {
+  document.getElementById('toggleUserPassword')?.addEventListener('click', toggleUserPasswordVisibility);
+  document.getElementById('generateUserPassword')?.addEventListener('click', generateUserPassword);
+}
+
+function toggleUserPasswordVisibility() {
+  const input = document.getElementById('uPass');
+  const button = document.getElementById('toggleUserPassword');
+  if (!input || !button) return;
+
+  const visible = input.type === 'text';
+  input.type = visible ? 'password' : 'text';
+  button.textContent = visible ? 'Mostrar' : 'Ocultar';
+}
+
+function randomPassword(length = 10) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  let password = 'QZ-';
+
+  for (let index = 0; index < length; index++) {
+    password += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+
+  return password;
+}
+
+function generateUserPassword() {
+  const input = document.getElementById('uPass');
+  const toggleButton = document.getElementById('toggleUserPassword');
+  if (!input) return;
+
+  input.value = randomPassword();
+  input.type = 'text';
+  if (toggleButton) toggleButton.textContent = 'Ocultar';
+  input.focus();
+  input.select();
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.setAttribute('readonly', '');
+  area.style.position = 'fixed';
+  area.style.left = '-9999px';
+  document.body.appendChild(area);
+  area.select();
+  const copied = document.execCommand('copy');
+  document.body.removeChild(area);
+  return copied;
+}
+
+function userAccessText(email, password, role) {
+  return [
+    'Acesso Quintal do Zé',
+    `E-mail: ${email}`,
+    `Senha: ${password}`,
+    `Perfil: ${roleLabel(role)}`,
+  ].join('\n');
+}
+
+async function copyUserAccess(email, password, role) {
+  try {
+    return await copyText(userAccessText(email, password, role));
+  } catch (err) {
+    console.warn('Nao foi possivel copiar o acesso automaticamente.', err);
+    return false;
+  }
+}
+
 async function saveUser(event) {
   event.preventDefault();
 
+  const password = document.getElementById('uPass').value;
   const body = {
     name: document.getElementById('uName').value,
     email: document.getElementById('uEmail').value,
-    password: document.getElementById('uPass').value,
+    password,
     role: document.getElementById('uRole').value,
   };
 
@@ -208,8 +308,16 @@ async function saveUser(event) {
     if (editingUser) await API.put('/api/users/' + editingUser.id, body);
     else await API.post('/api/users', body);
 
+    const copiedAccess = password ? await copyUserAccess(body.email, password, body.role) : false;
+    pendingUserAccess = password ? {
+      text: userAccessText(body.email, password, body.role),
+      copied: copiedAccess,
+    } : null;
+
     editingUser = null;
-    toast(txt('admin.usuarios.salvo', 'Usuário salvo.'));
+    toast(password
+      ? copiedAccess ? 'Usuário salvo. Acesso copiado.' : 'Usuário salvo. Copie o acesso antes de sair da tela.'
+      : txt('admin.usuarios.salvo', 'Usuário salvo.'));
     renderUsers();
   } catch (err) {
     toast(err.message);
@@ -226,6 +334,27 @@ window.deleteUser = async (id) => {
   if (!confirm(txt('admin.usuarios.confirmarExcluir', 'Excluir este usuário?'))) return;
   await API.del('/api/users/' + id);
   toast(txt('admin.usuarios.excluido', 'Usuário excluído.'));
+  renderUsers();
+};
+
+window.toggleUserActive = async (id, active) => {
+  const loggedUser = currentUser();
+  if (!active && String(loggedUser?.id) === String(id)) return toast('Você não pode desativar o próprio acesso.');
+  if (!active && !confirm('Desativar este funcionário? Ele não conseguirá acessar o sistema até ser reativado.')) return;
+  await API.put('/api/users/' + id + '/status', { active });
+  toast(active ? 'Funcionário reativado.' : 'Funcionário desativado.');
+  renderUsers();
+};
+
+window.copyPendingUserAccess = async () => {
+  const text = document.getElementById('pendingUserAccessText')?.value || pendingUserAccess?.text || '';
+  if (!text) return;
+  const copied = await copyText(text).catch(() => false);
+  toast(copied ? 'Acesso copiado.' : 'Não foi possível copiar automaticamente.');
+};
+
+window.clearPendingUserAccess = () => {
+  pendingUserAccess = null;
   renderUsers();
 };
 
