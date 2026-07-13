@@ -15,6 +15,7 @@ let products = [];
 let cart = [];
 let selectedCategory = txt('garcom.todos', 'Todos');
 let openOrders = [];
+let customizingItemId = null;
 
 async function init() {
   const [orderProducts, orders] = await Promise.all([
@@ -163,6 +164,233 @@ function updateCartItem(id, field, value) {
   renderCart();
 }
 
+function productText(item) {
+  return `${item?.name || ''} ${item?.category || ''} ${item?.description || ''}`.toLowerCase();
+}
+
+function hasAny(text, words) {
+  return words.some((word) => text.includes(word));
+}
+
+function modifierGroupsForItem(item) {
+  const text = productText(item);
+  const groups = [
+    {
+      title: 'Retirar do preparo',
+      options: [
+        { label: 'Sem cebola' },
+        { label: 'Sem tomate' },
+        { label: 'Sem alface' },
+        { label: 'Sem molho' },
+        { label: 'Sem pimenta' },
+        { label: 'Molho à parte' },
+      ],
+    },
+  ];
+
+  if (hasAny(text, ['carne', 'picanha', 'bife', 'frango', 'burguer', 'hamburguer', 'hambúrguer', 'prato', 'executivo', 'parmegiana'])) {
+    groups.push({
+      title: 'Ponto e preparo',
+      options: [
+        { label: 'Mal passada' },
+        { label: 'Ao ponto' },
+        { label: 'Bem passada' },
+        { label: 'Sem salada' },
+        { label: 'Trocar acompanhamento' },
+      ],
+    });
+
+    groups.push({
+      title: 'Acréscimos comuns',
+      options: [
+        { label: 'Ovo extra', price: 4 },
+        { label: 'Queijo extra', price: 4 },
+        { label: 'Bacon extra', price: 5 },
+        { label: 'Arroz extra', price: 6 },
+        { label: 'Feijão extra', price: 5 },
+        { label: 'Proteína extra', price: 12 },
+      ],
+    });
+  }
+
+  if (hasAny(text, ['porção', 'porcao', 'batata', 'frita', 'frango', 'calabresa', 'mandioca'])) {
+    groups.push({
+      title: 'Porções',
+      options: [
+        { label: 'Molho extra', price: 2 },
+        { label: 'Maionese da casa', price: 2 },
+        { label: 'Cheddar extra', price: 5 },
+        { label: 'Bacon extra', price: 5 },
+        { label: 'Sem sal' },
+      ],
+    });
+  }
+
+  if (hasAny(text, ['bebida', 'refrigerante', 'suco', 'água', 'agua', 'cerveja', 'drink', 'lata'])) {
+    groups.push({
+      title: 'Bebidas',
+      options: [
+        { label: 'Sem gelo' },
+        { label: 'Com gelo' },
+        { label: 'Com limão' },
+        { label: 'Sem limão' },
+        { label: 'Copo extra' },
+      ],
+    });
+  }
+
+  if (hasAny(text, ['café', 'cafe', 'bolo', 'sobremesa', 'doce', 'torta', 'cookie'])) {
+    groups.push({
+      title: 'Café e sobremesa',
+      options: [
+        { label: 'Sem açúcar' },
+        { label: 'Açúcar à parte' },
+        { label: 'Com canela' },
+        { label: 'Sem canela' },
+        { label: 'Porção extra', price: 6 },
+      ],
+    });
+  }
+
+  groups.push({
+    title: 'Restaurante',
+    options: [
+      { label: 'Talher descartável' },
+      { label: 'Para viagem' },
+      { label: 'Separar embalagem' },
+      { label: 'Prioridade para criança' },
+    ],
+  });
+
+  return groups;
+}
+
+function renderModifierGroups(item) {
+  return modifierGroupsForItem(item).map((group) => `
+    <div class="customize-group">
+      <h4>${htmlAttr(group.title)}</h4>
+      <div class="customize-chip-grid">
+        ${group.options.map((option) => `
+          <button
+            type="button"
+            class="customize-chip ${option.price ? 'has-price' : ''}"
+            data-note="${htmlAttr(option.label)}"
+            data-price="${Number(option.price || 0)}"
+          >
+            <span>${htmlAttr(option.label)}</span>
+            ${option.price ? `<b>+ ${money(option.price)}</b>` : ''}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function openCustomizeItem(id) {
+  const item = cart.find((line) => productId(line.id) === productId(id));
+  const modal = document.getElementById('customizeModal');
+  if (!item || !modal) return;
+
+  customizingItemId = productId(id);
+  modal.innerHTML = `
+    <div class="customize-backdrop" onclick="closeCustomizeItem()"></div>
+    <div class="customize-card" role="dialog" aria-modal="true" aria-label="Personalizar item">
+      <div class="customize-head">
+        <div>
+          <span>Personalizar item</span>
+          <h3>${htmlAttr(item.name)}</h3>
+          <p>${htmlAttr(item.category || 'Item da comanda')} • ${money(itemBasePrice(item))}</p>
+        </div>
+        <button class="soft" type="button" onclick="closeCustomizeItem()">Fechar</button>
+      </div>
+
+      <div class="customize-body">
+        <p class="muted">Escolha sugestões rápidas ou escreva uma observação específica para a cozinha.</p>
+        ${renderModifierGroups(item)}
+
+        <div class="customize-manual">
+          <label>Observação do item
+            <textarea id="customItemNote" placeholder="Ex: sem cebola, ponto da carne, trocar acompanhamento...">${htmlAttr(item.note || '')}</textarea>
+          </label>
+          <label>Acréscimo por unidade
+            <input id="customItemExtra" type="number" min="0" step="0.01" value="${Number(item.extraPrice || 0) || ''}" placeholder="Ex: 3.00">
+          </label>
+        </div>
+      </div>
+
+      <div class="customize-footer">
+        <div>
+          <span>Total do item</span>
+          <b id="customItemPreview">${money(itemLineTotal(item))}</b>
+        </div>
+        <button class="primary" type="button" onclick="saveCustomizeItem()">Salvar personalização</button>
+      </div>
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+  bindCustomizeModal();
+  updateCustomizePreview();
+}
+
+function closeCustomizeItem() {
+  const modal = document.getElementById('customizeModal');
+  if (modal) modal.classList.add('hidden');
+  customizingItemId = null;
+}
+
+function bindCustomizeModal() {
+  document.querySelectorAll('.customize-chip').forEach((button) => {
+    button.addEventListener('click', () => applyModifierSuggestion(button.dataset.note, Number(button.dataset.price || 0)));
+  });
+
+  ['customItemNote', 'customItemExtra'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('input', updateCustomizePreview);
+  });
+}
+
+function applyModifierSuggestion(note, price) {
+  const noteInput = document.getElementById('customItemNote');
+  const extraInput = document.getElementById('customItemExtra');
+  if (!noteInput || !extraInput) return;
+
+  const currentNotes = noteInput.value
+    .split(';')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (note && !currentNotes.includes(note)) {
+    currentNotes.push(note);
+    noteInput.value = currentNotes.join('; ');
+  }
+
+  if (price) {
+    extraInput.value = Number((Number(extraInput.value || 0) + price).toFixed(2));
+  }
+
+  updateCustomizePreview();
+}
+
+function updateCustomizePreview() {
+  const item = cart.find((line) => productId(line.id) === productId(customizingItemId));
+  const preview = document.getElementById('customItemPreview');
+  if (!item || !preview) return;
+
+  const extraPrice = Math.max(Number(document.getElementById('customItemExtra')?.value || 0), 0);
+  preview.textContent = money((itemBasePrice(item) + extraPrice) * Number(item.qty || 1));
+}
+
+function saveCustomizeItem() {
+  const item = cart.find((line) => productId(line.id) === productId(customizingItemId));
+  if (!item) return closeCustomizeItem();
+
+  item.note = document.getElementById('customItemNote')?.value || '';
+  item.extraPrice = Math.max(Number(document.getElementById('customItemExtra')?.value || 0), 0);
+
+  closeCustomizeItem();
+  renderCart();
+}
+
 function render() {
   document.getElementById('content').innerHTML = `
     <div class="grid g2">
@@ -205,6 +433,7 @@ function render() {
         </form>
       </section>
     </div>
+    <div id="customizeModal" class="customize-modal hidden"></div>
   `;
 
   document.getElementById('orderForm').onsubmit = send;
@@ -281,14 +510,9 @@ function renderCart() {
           <button type="button" onclick="add('${productId(item.id)}')">+</button>
         </div>
       </div>
-      <div class="item-extra-grid">
-        <label>Detalhes/adicionais do item
-          <input value="${htmlAttr(item.note || '')}" placeholder="Ex: sem cebola, ponto da carne, adicional bacon" oninput="updateCartItem('${productId(item.id)}', 'note', this.value)">
-        </label>
-        <label>Acréscimo por unidade
-          <input type="number" min="0" step="0.01" value="${Number(item.extraPrice || 0) || ''}" placeholder="Ex: 3.00" oninput="updateCartItem('${productId(item.id)}', 'extraPrice', this.value)">
-        </label>
-      </div>
+      <button class="soft customize-item-button" type="button" onclick="openCustomizeItem('${productId(item.id)}')">
+        ${item.note || item.extraPrice ? 'Editar personalização' : 'Personalizar / acréscimos'}
+      </button>
     `).join('') : `<p class="muted">${txt('garcom.nenhumItem', 'Nenhum item adicionado.')}</p>`}
 
     <div class="metric" style="margin-top:12px">
@@ -332,6 +556,9 @@ async function send(event) {
 
 window.selectTableSuggestion = selectTableSuggestion;
 window.updateCartItem = updateCartItem;
+window.openCustomizeItem = openCustomizeItem;
+window.closeCustomizeItem = closeCustomizeItem;
+window.saveCustomizeItem = saveCustomizeItem;
 
 init();
 setInterval(syncTableSuggestions, 15000);
