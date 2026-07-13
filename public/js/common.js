@@ -194,6 +194,63 @@ function paymentBodyFromControls(id, scope) {
   };
 }
 
+function isEventOrder(order) {
+  return order?.source === 'quote' || Boolean(order?.quoteId) || /^evento\b/i.test(String(order?.table || ''));
+}
+
+function eventPaymentKey(orderId) {
+  return `event-${orderId}`;
+}
+
+function eventOrderTitle(order) {
+  return order?.table || (order?.quoteId ? `Evento ${order.quoteId}` : `Pedido #${order?.id || ''}`);
+}
+
+function eventOrderMeta(order) {
+  return String(order?.notes || '')
+    .split('|')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function eventPaymentControls(order, scope) {
+  const key = eventPaymentKey(order.id);
+  const subtotal = orderSubtotal(order);
+
+  return `
+    <div class="payment-box event-payment-box" data-payment-box="${scope}-${key}" data-subtotal="${subtotal}">
+      <div class="payment-grid event-payment-grid">
+        <label>Forma de pagamento
+          <select id="${paymentFieldId(key, scope, 'method')}" class="payment-control" data-order="${key}" data-scope="${scope}">
+            ${paymentOptions('pix')}
+          </select>
+        </label>
+
+        <label>Observação do pagamento
+          <input id="${paymentFieldId(key, scope, 'note')}" placeholder="Opcional">
+        </label>
+      </div>
+
+      <div class="payment-total">
+        <div>
+          <span>Total do evento</span>
+          <small>Valor vindo do orçamento aprovado</small>
+        </div>
+        <b id="${paymentFieldId(key, scope, 'total')}">${money(subtotal)}</b>
+      </div>
+    </div>
+  `;
+}
+
+function eventPaymentBodyFromControls(orderId, scope) {
+  return {
+    ...paymentBodyFromControls(eventPaymentKey(orderId), scope),
+    serviceFee: 0,
+    discount: 0,
+    paymentSplitCount: 0,
+  };
+}
+
 function tableKey(table) {
   return String(table || 'Sem mesa');
 }
@@ -436,6 +493,130 @@ function tableCheckoutPanel(openOrders, selectedTable, scope, closeFunctionName,
     </div>
   `;
 }
+
+function eventCheckoutPanel(eventOrders, scope, closeFunctionName, cancelFunctionName) {
+  const orders = [...eventOrders].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  if (!orders.length) return '<p class="muted">Nenhum evento vindo de orçamento aguardando pagamento.</p>';
+
+  return `
+    <div class="event-checkout-list">
+      ${orders.map((order) => {
+        const meta = eventOrderMeta(order);
+
+        return `
+          <div class="event-checkout-card">
+            <div class="event-checkout-head">
+              <div>
+                <span>Evento / orçamento</span>
+                <h3>${htmlAttr(eventOrderTitle(order))}</h3>
+                <p>Pedido #${order.id}${order.quoteId ? ` • Orçamento #${order.quoteId}` : ''} • ${dateTime(order.createdAt)}</p>
+              </div>
+              <b>${money(orderSubtotal(order))}</b>
+            </div>
+
+            ${meta.length ? `
+              <div class="event-meta-grid">
+                ${meta.slice(0, 8).map((item) => `<span>${htmlAttr(item)}</span>`).join('')}
+              </div>
+            ` : ''}
+
+            <div class="table-checkout-orders">
+              <div class="table-checkout-order">
+                <div class="order-head">
+                  <div>
+                    <b>Itens do evento</b>
+                    <p class="muted">${htmlAttr(order.waiter || 'Orçamento')} • ${htmlAttr(statusLabel(order.status))}</p>
+                  </div>
+                  <span class="badge blue">Sem mesa</span>
+                </div>
+
+                ${(order.items || []).map((item) => `
+                  <div class="cart-line">
+                    <span>${Number(item.qty || 1)}x ${htmlAttr(item.name)}${itemDetailsHtml(item)}</span>
+                    <b>${money(itemLineTotal(item))}</b>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            ${eventPaymentControls(order, scope)}
+
+            <div class="table-final-actions event-final-actions">
+              <button class="soft" type="button" onclick="printEventReceipt(${order.id}, '${scope}')">Recibo PDF</button>
+              <button class="danger" type="button" onclick="${cancelFunctionName}(${order.id})">Cancelar evento</button>
+              <button class="primary table-close-button" type="button" onclick="${closeFunctionName}(${order.id})">Fechar evento</button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+window.printEventReceipt = async (orderId, scope) => {
+  const orders = await API.get('/api/orders');
+  const order = orders.find((item) => String(item.id) === String(orderId));
+  if (!order) return toast('Evento não encontrado para gerar recibo.');
+
+  const subtotal = orderSubtotal(order);
+  const payment = eventPaymentBodyFromControls(order.id, scope);
+  const generatedAt = new Date().toLocaleString('pt-BR');
+  const title = eventOrderTitle(order);
+  const meta = eventOrderMeta(order);
+
+  const metricsHtml = `
+    <div class="grid g4">
+      <div class="metric"><span>Evento</span><b>${htmlAttr(title)}</b></div>
+      <div class="metric"><span>Pedido</span><b>#${order.id}</b></div>
+      <div class="metric"><span>Forma</span><b>${paymentMethodLabel(payment.paymentMethod)}</b></div>
+      <div class="metric"><span>Total</span><b>${money(subtotal)}</b></div>
+    </div>
+  `;
+
+  const bodyHtml = `
+    ${meta.length ? `
+      <div class="grid g2" style="margin-bottom:18px">
+        ${meta.slice(0, 8).map((item) => `<div class="metric"><span>Informação</span><b>${htmlAttr(item)}</b></div>`).join('')}
+      </div>
+    ` : ''}
+
+    <h2>Itens do evento</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Item</th><th>Qtd.</th><th>Unit.</th><th>Total</th></tr></thead>
+        <tbody>
+          ${(order.items || []).map((item) => `
+            <tr>
+              <td>${htmlAttr(item.name)}${item.note ? `<br><small>${htmlAttr(item.note)}</small>` : ''}</td>
+              <td>${Number(item.qty || 1)}</td>
+              <td>${money(itemUnitPrice(item))}</td>
+              <td>${money(itemLineTotal(item))}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    ${payment.paymentNote ? `<p class="pdf-print-note">${htmlAttr(payment.paymentNote)}</p>` : ''}
+
+    <div class="pdf-print-total">
+      <span>Total do evento</span>
+      <b>${money(subtotal)}</b>
+    </div>
+  `;
+
+  return openReportPrintDocument({
+    documentTitle: `Evento ${htmlAttr(title)}`,
+    heading: 'Evento Quintal do Zé',
+    subtitle: `Fechamento de orçamento • ${generatedAt}`,
+    details: 'Recibo simples para evento aprovado.',
+    metricsHtml,
+    bodyHtml,
+    referenceLabel: 'Evento',
+    referenceText: htmlAttr(title),
+    blockedMessage: 'Permita pop-ups para imprimir o recibo do evento.',
+  });
+};
 
 window.printTableReceipt = async (encoded, scope) => {
   const table = decodedTable(encoded);

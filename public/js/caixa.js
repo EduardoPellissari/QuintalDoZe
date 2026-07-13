@@ -34,18 +34,23 @@ async function cash() {
     API.get('/api/cash-sessions/current'),
   ]);
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
-  const groups = groupOrdersByTable(openOrders);
+  const eventOrders = openOrders.filter(isEventOrder);
+  const restaurantOrders = openOrders.filter((order) => !isEventOrder(order));
+  const groups = groupOrdersByTable(restaurantOrders);
   if (!selectedCashTable || !groups.some((group) => group.table === selectedCashTable)) {
     selectedCashTable = groups[0]?.table || '';
   }
 
   const occupiedTables = groups.length;
-  const totalOpen = groups.reduce((sum, group) => sum + group.subtotal, 0);
+  const restaurantTotalOpen = groups.reduce((sum, group) => sum + group.subtotal, 0);
+  const eventTotalOpen = eventOrders.reduce((sum, order) => sum + orderSubtotal(order), 0);
+  const totalOpen = restaurantTotalOpen + eventTotalOpen;
 
   document.getElementById('content').innerHTML = `
     <section class="dashboard-cards">
       <div class="dash-card"><b>${openOrders.length}</b><span>Pedidos em aberto</span></div>
       <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
+      <div class="dash-card"><b>${eventOrders.length}</b><span>Eventos no caixa</span></div>
       <div class="dash-card"><b>${money(totalOpen)}</b><span>Total em aberto</span></div>
     </section>
 
@@ -54,11 +59,23 @@ async function cash() {
     <section class="panel" style="margin-top:18px">
       <div class="admin-form-head">
         <div>
+          <h3>Eventos vindos de orçamento</h3>
+          <p>Feche eventos separadamente, sem mesa, taxa de serviço, divisão ou transferência.</p>
+        </div>
+        <span class="badge blue">${eventOrders.length} evento(s)</span>
+      </div>
+
+      ${eventCheckoutPanel(eventOrders, 'cash', 'closeCashEvent', 'cancelOrder')}
+    </section>
+
+    <section class="panel" style="margin-top:18px">
+      <div class="admin-form-head">
+        <div>
           <h3>Mapa das mesas</h3>
           <p>Veja rapidamente mesas livres, em atendimento, na cozinha ou prontas para fechar.</p>
         </div>
       </div>
-      ${tableMapPanel(openOrders, selectedCashTable, 'selectCashTable')}
+      ${tableMapPanel(restaurantOrders, selectedCashTable, 'selectCashTable')}
     </section>
 
     <section class="panel">
@@ -70,7 +87,7 @@ async function cash() {
         <span class="badge warn">${occupiedTables} mesa(s)</span>
       </div>
 
-      ${tableSummaryCards(openOrders, selectedCashTable, 'selectCashTable')}
+      ${tableSummaryCards(restaurantOrders, selectedCashTable, 'selectCashTable')}
     </section>
 
     <section class="panel" style="margin-top:18px">
@@ -82,7 +99,7 @@ async function cash() {
         <span class="badge ok">Caixa</span>
       </div>
 
-      ${tableCheckoutPanel(openOrders, selectedCashTable, 'cash', 'closeCashTable', 'cancelOrder', 'transferCashTable')}
+      ${tableCheckoutPanel(restaurantOrders, selectedCashTable, 'cash', 'closeCashTable', 'cancelOrder', 'transferCashTable')}
     </section>
   `;
 
@@ -99,6 +116,12 @@ window.closeCashTable = async (encoded) => {
   await API.post('/api/tables/pay', tablePaymentBodyFromControls(table, 'cash'));
   toast('Mesa/comanda fechada.');
   selectedCashTable = '';
+  cash();
+};
+
+window.closeCashEvent = async (orderId) => {
+  await API.put(`/api/orders/${orderId}/pay`, eventPaymentBodyFromControls(orderId, 'cash'));
+  toast('Evento fechado.');
   cash();
 };
 
