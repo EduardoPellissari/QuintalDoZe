@@ -591,7 +591,7 @@ textarea {
 
 .dashboard-cards {
   display:grid;
-  grid-template-columns:repeat(3,1fr);
+  grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
   gap:14px;
   margin-bottom:18px
 }
@@ -606,6 +606,81 @@ textarea {
 .dash-card b {
   font-size:30px;
   color:var(--gold)
+}
+
+.table-status-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:12px
+}
+
+.table-status-card {
+  padding:16px;
+  border-radius:18px;
+  background:rgba(246,196,0,.09);
+  border:1px solid rgba(246,196,0,.18)
+}
+
+.table-status-card span {
+  display:block;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase
+}
+
+.table-status-card b {
+  display:block;
+  margin-top:6px;
+  color:var(--gold);
+  font-size:28px
+}
+
+.table-status-card small {
+  display:block;
+  margin-top:6px;
+  color:var(--muted);
+  font-weight:800
+}
+
+.payment-box {
+  margin-top:14px;
+  padding:14px;
+  border-radius:18px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.09)
+}
+
+.payment-grid {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px
+}
+
+.payment-grid label {
+  margin-top:0
+}
+
+.payment-total {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  margin-top:12px;
+  padding:12px 14px;
+  border-radius:14px;
+  background:rgba(246,196,0,.12);
+  border:1px solid rgba(246,196,0,.18)
+}
+
+.payment-total span {
+  color:var(--muted);
+  font-weight:900
+}
+
+.payment-total b {
+  color:var(--gold);
+  font-size:22px
 }
 
 
@@ -841,6 +916,18 @@ textarea {
 
 .print-btn {
   max-width:260px
+}
+
+.report-actions {
+  display:flex;
+  align-items:flex-end;
+  gap:14px;
+  flex-wrap:wrap
+}
+
+.report-actions label {
+  min-width:220px;
+  margin-top:0
 }
 
 #toast {
@@ -1372,6 +1459,19 @@ textarea {
 
   .quote-item-total span {
     text-align: left;
+  }
+
+  .payment-grid,
+  .report-actions {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .report-actions .print-btn,
+  .report-actions label {
+    width: 100%;
+    max-width: none;
   }
 
   

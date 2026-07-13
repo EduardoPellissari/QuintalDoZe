@@ -65,6 +65,36 @@ function productMatchesUsage(product, usage) {
   return productUsage(product.usage) === usage;
 }
 
+function paymentMethod(value) {
+  const allowed = ['pix', 'dinheiro', 'debito', 'credito', 'voucher', 'misto'];
+  return allowed.includes(String(value)) ? String(value) : 'pix';
+}
+
+function orderSubtotal(order) {
+  if (Number(order?.subtotal || 0) > 0) return Number(order.subtotal);
+  return (order?.items || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
+}
+
+function normalizeOrder(order) {
+  const safeOrder = order && typeof order === 'object' ? order : {};
+  const subtotal = orderSubtotal(safeOrder);
+  const serviceFee = Math.max(Number(safeOrder.serviceFee || 0), 0);
+  const discount = Math.max(Number(safeOrder.discount || 0), 0);
+  const total = Math.max(Number(safeOrder.total ?? subtotal + serviceFee - discount), 0);
+
+  return {
+    ...safeOrder,
+    subtotal,
+    serviceFee,
+    discount,
+    total,
+    paymentMethod: safeOrder.paymentMethod || '',
+    paymentNote: safeOrder.paymentNote || '',
+    cancelReason: safeOrder.cancelReason || '',
+    canceledAt: safeOrder.canceledAt || null,
+  };
+}
+
 function normalizeDb(dbCandidate) {
   const defaults = defaultDb();
   const db = dbCandidate && typeof dbCandidate === 'object' ? dbCandidate : {};
@@ -74,6 +104,7 @@ function normalizeDb(dbCandidate) {
   db.products = db.products.map(normalizeProduct);
   if (!Array.isArray(db.quotes)) db.quotes = [];
   if (!Array.isArray(db.orders)) db.orders = [];
+  db.orders = db.orders.map(normalizeOrder);
 
   return db;
 }
@@ -411,12 +442,19 @@ app.post('/api/orders', asyncHandler(async (req, res) => {
     notes: String(req.body.notes || '').trim(),
     status: 'pendente',
     paid: false,
+    subtotal: total,
+    serviceFee: 0,
+    discount: 0,
     total,
+    paymentMethod: '',
+    paymentNote: '',
+    cancelReason: '',
     createdAt: new Date().toISOString(),
     startedAt: null,
     readyAt: null,
     deliveredAt: null,
-    paidAt: null
+    paidAt: null,
+    canceledAt: null
   };
 
   db.orders.push(order);
@@ -438,6 +476,10 @@ app.put('/api/orders/:id/status', asyncHandler(async (req, res) => {
   if (nextStatus === 'preparando' && previousStatus !== 'preparando' && !order.startedAt) order.startedAt = now;
   if (nextStatus === 'pronto' && previousStatus !== 'pronto' && !order.readyAt) order.readyAt = now;
   if (nextStatus === 'entregue' && previousStatus !== 'entregue' && !order.deliveredAt) order.deliveredAt = now;
+  if (nextStatus === 'cancelado' && previousStatus !== 'cancelado') {
+    order.cancelReason = String(req.body.cancelReason || '').trim();
+    order.canceledAt = now;
+  }
 
   await writeDb(db);
   res.json(order);
@@ -448,8 +490,22 @@ app.put('/api/orders/:id/pay', asyncHandler(async (req, res) => {
   const order = db.orders.find((o) => String(o.id) === String(req.params.id));
   if (!order) return res.status(404).json({ error: 'Pedido não encontrado.' });
 
+  const subtotal = orderSubtotal(order);
+  const serviceFee = Math.max(Number(req.body.serviceFee || 0), 0);
+  const discount = Math.max(Number(req.body.discount || 0), 0);
+
+  order.subtotal = subtotal;
+  order.serviceFee = serviceFee;
+  order.discount = discount;
+  order.total = Math.max(subtotal + serviceFee - discount, 0);
+  order.paymentMethod = paymentMethod(req.body.paymentMethod);
+  order.paymentNote = String(req.body.paymentNote || '').trim();
   order.paid = true;
   order.paidAt = new Date().toISOString();
+  if (!['cancelado', 'entregue'].includes(order.status)) {
+    order.status = 'entregue';
+    if (!order.deliveredAt) order.deliveredAt = order.paidAt;
+  }
 
   await writeDb(db);
   res.json(order);

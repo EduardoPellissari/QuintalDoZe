@@ -24,6 +24,7 @@ let editingProduct = null;
 let editingQuote = null;
 let quoteProducts = [];
 let quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
+let adminReportDate = todayDateValue();
 
 const quoteTypes = ['Café da tarde', 'Happy hour', 'Coffee break', 'Almoço/Jantar', 'Evento personalizado'];
 const quoteStatuses = [
@@ -805,6 +806,34 @@ window.printQuote = async (id) => {
   });
 };
 
+function tableOverview(openOrders) {
+  const byTable = {};
+
+  openOrders.forEach((order) => {
+    const key = order.table || 'Sem mesa';
+    if (!byTable[key]) byTable[key] = { table: key, total: 0, orders: 0, ready: 0, preparing: 0 };
+    byTable[key].orders += 1;
+    byTable[key].total += orderFinalTotal(order);
+    if (order.status === 'pronto') byTable[key].ready += 1;
+    if (order.status === 'preparando') byTable[key].preparing += 1;
+  });
+
+  const tables = Object.values(byTable).sort((a, b) => String(a.table).localeCompare(String(b.table), 'pt-BR'));
+  if (!tables.length) return '<p class="muted">Nenhuma mesa ocupada no momento.</p>';
+
+  return `
+    <div class="table-status-grid">
+      ${tables.map((table) => `
+        <div class="table-status-card">
+          <span>Mesa/Comanda</span>
+          <b>${escapeHtml(table.table)}</b>
+          <small>${table.orders} pedido(s) • ${table.ready} pronto(s) • ${money(table.total)}</small>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
 async function renderCash() {
   setText('pageTitle', txt('admin.caixa.titulo', 'Caixa'));
   setText('pageSub', txt('admin.caixa.subtitulo', 'Fechamento de pedidos em aberto dentro do painel admin.'));
@@ -812,20 +841,34 @@ async function renderCash() {
   const orders = await API.get('/api/orders');
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
   const readyOrders = openOrders.filter((order) => order.status === 'pronto').length;
-  const totalOpen = openOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const totalOpen = openOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
+  const occupiedTables = new Set(openOrders.map((order) => order.table || 'Sem mesa')).size;
 
   content.innerHTML = `
     <section class="dashboard-cards">
       <div class="dash-card"><b>${openOrders.length}</b><span>${txt('admin.caixa.cardAbertos', 'Pedidos em aberto')}</span></div>
       <div class="dash-card"><b>${readyOrders}</b><span>${txt('admin.caixa.cardProntos', 'Prontos para fechar')}</span></div>
+      <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
       <div class="dash-card"><b>${money(totalOpen)}</b><span>${txt('admin.caixa.cardTotal', 'Total em aberto')}</span></div>
     </section>
 
     <section class="panel">
       <div class="admin-form-head">
         <div>
+          <h3>Controle de mesas</h3>
+          <p>Veja quais mesas/comandas estão abertas antes de fechar pagamentos.</p>
+        </div>
+        <span class="badge warn">${occupiedTables} mesa(s)</span>
+      </div>
+
+      ${tableOverview(openOrders)}
+    </section>
+
+    <section class="panel" style="margin-top:18px">
+      <div class="admin-form-head">
+        <div>
           <h3>${txt('admin.caixa.painelTitulo', 'Caixa')}</h3>
-          <p>${txt('admin.caixa.painelDescricao', 'Marque pedidos como pagos ou cancele pedidos quando necessário.')}</p>
+          <p>Feche a conta com forma de pagamento, taxa de serviço e desconto quando necessário.</p>
         </div>
         <span class="badge ok">${txt('admin.caixa.badge', 'Acesso admin')}</span>
       </div>
@@ -835,6 +878,8 @@ async function renderCash() {
       </div>
     </section>
   `;
+
+  bindPaymentControls('admin');
 }
 
 function orderCard(order) {
@@ -858,9 +903,11 @@ function orderCard(order) {
       </div>
 
       <div class="metric" style="margin-top:12px">
-        <b>${txt('pedidos.total', 'Total')}</b>
-        <b class="price">${money(order.total)}</b>
+        <b>Subtotal</b>
+        <b>${money(orderSubtotal(order))}</b>
       </div>
+
+      ${orderPaymentControls(order, 'admin')}
 
       <div class="actions" style="margin-top:12px">
         <button class="primary" onclick="adminPayOrder(${order.id})">${txt('pedidos.marcarPago', 'Marcar como pago')}</button>
@@ -894,28 +941,42 @@ async function renderReports() {
   setText('pageSub', txt('admin.relatorios.subtitulo', 'Resumo financeiro e produtos mais vendidos dentro do painel admin.'));
 
   const orders = await API.get('/api/orders');
-  const paidOrders = orders.filter((order) => order.paid);
-  const total = paidOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const paidOrders = orders.filter((order) => order.paid && localDateValue(order.paidAt || order.createdAt) === adminReportDate);
+  const total = paidOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
   const items = {};
+  const payments = {};
+  const totalDiscount = paidOrders.reduce((sum, order) => sum + orderDiscount(order), 0);
+  const totalService = paidOrders.reduce((sum, order) => sum + orderServiceFee(order), 0);
 
   paidOrders.forEach((order) => {
+    const method = order.paymentMethod || 'nao_informado';
+    if (!payments[method]) payments[method] = { count: 0, total: 0 };
+    payments[method].count += 1;
+    payments[method].total += orderFinalTotal(order);
+
     order.items.forEach((item) => {
       items[item.name] = (items[item.name] || 0) + Number(item.qty || 1);
     });
   });
 
   const topItems = Object.entries(items).sort((a, b) => b[1] - a[1]);
+  const paymentRows = Object.entries(payments).sort((a, b) => b[1].total - a[1].total);
   const durations = paidOrders.map(orderDurationMinutes).filter((value) => value !== null);
   const avgDuration = durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : null;
 
   content.innerHTML = `
-    <button class="primary print-btn" onclick="printVisibleReportDocument()">${txt('relatorios.botaoPdf', 'Salvar/Imprimir PDF')}</button>
+    <div class="report-actions">
+      <button class="primary print-btn" onclick="printVisibleReportDocument()">${txt('relatorios.botaoPdf', 'Salvar/Imprimir PDF')}</button>
+      <label>Data do relatório
+        <input id="adminReportDate" type="date" value="${adminReportDate}" onchange="setAdminReportDate(this.value)">
+      </label>
+    </div>
 
     <section class="report-page" style="margin-top:16px">
       <div class="report-head">
         <div>
           <h1>${txt('relatorios.titulo', 'Relatório Quintal do Zé')}</h1>
-          <p>${txt('relatorios.fechamento', 'Fechamento local')} • ${new Date().toLocaleDateString('pt-BR')}</p>
+          <p>${txt('relatorios.fechamento', 'Fechamento local')} • ${new Date(`${adminReportDate}T00:00:00`).toLocaleDateString('pt-BR')}</p>
         </div>
         <img src="/assets/logo.jpg" alt="Logo Quintal do Zé">
       </div>
@@ -925,6 +986,21 @@ async function renderReports() {
         <div class="metric"><span>${txt('relatorios.faturamento', 'Faturamento')}</span><b>${money(total)}</b></div>
         <div class="metric"><span>${txt('relatorios.ticketMedio', 'Ticket médio')}</span><b>${money(paidOrders.length ? total / paidOrders.length : 0)}</b></div>
         <div class="metric"><span>Tempo médio por pedido</span><b>${durationLabel(avgDuration)}</b></div>
+      </div>
+
+      <div class="grid g2" style="margin-top:18px">
+        <div class="metric"><span>Taxas de serviço</span><b>${money(totalService)}</b></div>
+        <div class="metric"><span>Descontos</span><b>${money(totalDiscount)}</b></div>
+      </div>
+
+      <h2>Resumo por pagamento</h2>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Forma</th><th>Pedidos</th><th>Total</th></tr></thead>
+          <tbody>
+            ${paymentRows.length ? paymentRows.map(([method, data]) => `<tr><td>${paymentMethodLabel(method)}</td><td>${data.count}</td><td>${money(data.total)}</td></tr>`).join('') : `<tr><td colspan="3">Sem pagamentos nesta data.</td></tr>`}
+          </tbody>
+        </table>
       </div>
 
       <h2>${txt('relatorios.produtosMaisVendidos', 'Produtos mais vendidos')}</h2>
@@ -940,9 +1016,9 @@ async function renderReports() {
       <h2>${txt('relatorios.pedidosPagos', 'Pedidos pagos')}</h2>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>${txt('relatorios.mesa', 'Mesa')}</th><th>${txt('relatorios.garcom', 'Garçom')}</th><th>${txt('relatorios.data', 'Data')}</th><th>Tempo</th><th>${txt('relatorios.total', 'Total')}</th></tr></thead>
+          <thead><tr><th>${txt('relatorios.mesa', 'Mesa')}</th><th>${txt('relatorios.garcom', 'Garçom')}</th><th>${txt('relatorios.data', 'Data')}</th><th>Pagamento</th><th>Tempo</th><th>${txt('relatorios.total', 'Total')}</th></tr></thead>
           <tbody>
-            ${paidOrders.length ? paidOrders.map((order) => `<tr><td>${order.table}</td><td>${order.waiter || '-'}</td><td>${dateTime(order.createdAt)}</td><td>${durationLabel(orderDurationMinutes(order))}</td><td>${money(order.total)}</td></tr>`).join('') : `<tr><td colspan="5">${txt('relatorios.nenhumPago', 'Nenhum pedido pago ainda.')}</td></tr>`}
+            ${paidOrders.length ? paidOrders.map((order) => `<tr><td>${order.table}</td><td>${order.waiter || '-'}</td><td>${dateTime(order.createdAt)}</td><td>${paymentMethodLabel(order.paymentMethod)}</td><td>${durationLabel(orderDurationMinutes(order))}</td><td>${money(orderFinalTotal(order))}</td></tr>`).join('') : `<tr><td colspan="6">${txt('relatorios.nenhumPago', 'Nenhum pedido pago ainda.')}</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -950,15 +1026,21 @@ async function renderReports() {
   `;
 }
 
+window.setAdminReportDate = (value) => {
+  adminReportDate = value || todayDateValue();
+  renderReports();
+};
+
 window.adminPayOrder = async (id) => {
-  await API.put('/api/orders/' + id + '/pay', {});
+  await API.put('/api/orders/' + id + '/pay', paymentBodyFromControls(id, 'admin'));
   toast(txt('pedidos.pedidoPago', 'Pedido pago.'));
   renderCash();
 };
 
 window.adminCancelOrder = async (id) => {
   if (!confirm(txt('pedidos.confirmarCancelar', 'Cancelar pedido?'))) return;
-  await API.put('/api/orders/' + id + '/status', { status: 'cancelado' });
+  const cancelReason = prompt('Informe o motivo do cancelamento:', '') || '';
+  await API.put('/api/orders/' + id + '/status', { status: 'cancelado', cancelReason });
   toast(txt('pedidos.pedidoCancelado', 'Pedido cancelado.'));
   renderCash();
 };

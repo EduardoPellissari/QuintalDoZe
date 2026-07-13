@@ -14,6 +14,8 @@ setText('areaSmall', txt('caixa.area', 'Área do caixa'));
 setText('pageTitle', txt('caixa.titulo', 'Caixa'));
 setText('pageSub', txt('caixa.subtitulo', 'Fechamento e relatórios.'));
 
+let cashReportDate = todayDateValue();
+
 document.getElementById('sideNav').addEventListener('click', (event) => {
   const button = event.target.closest('button[data-tab]');
   if (!button) return;
@@ -28,14 +30,63 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
 async function cash() {
   const orders = await API.get('/api/orders');
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
+  const occupiedTables = new Set(openOrders.map((order) => order.table || 'Sem mesa')).size;
+  const totalOpen = openOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
 
   document.getElementById('content').innerHTML = `
+    <section class="dashboard-cards">
+      <div class="dash-card"><b>${openOrders.length}</b><span>Pedidos em aberto</span></div>
+      <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
+      <div class="dash-card"><b>${money(totalOpen)}</b><span>Total em aberto</span></div>
+    </section>
+
     <section class="panel">
+      <div class="admin-form-head">
+        <div>
+          <h3>Controle de mesas</h3>
+          <p>Veja as mesas/comandas abertas antes de fechar o pagamento.</p>
+        </div>
+        <span class="badge warn">${occupiedTables} mesa(s)</span>
+      </div>
+
+      ${tableOverview(openOrders)}
+    </section>
+
+    <section class="panel" style="margin-top:18px">
       <h3>${txt('caixa.pedidosAbertos', 'Pedidos em aberto')}</h3>
       <div class="order-list">
         ${openOrders.length ? openOrders.map(orderCard).join('') : `<p class="muted">${txt('pedidos.nenhumAberto', 'Nenhum pedido em aberto.')}</p>`}
       </div>
     </section>
+  `;
+
+  bindPaymentControls('cash');
+}
+
+function tableOverview(openOrders) {
+  const byTable = {};
+
+  openOrders.forEach((order) => {
+    const key = order.table || 'Sem mesa';
+    if (!byTable[key]) byTable[key] = { table: key, total: 0, orders: 0, ready: 0 };
+    byTable[key].orders += 1;
+    byTable[key].total += orderFinalTotal(order);
+    if (order.status === 'pronto') byTable[key].ready += 1;
+  });
+
+  const tables = Object.values(byTable).sort((a, b) => String(a.table).localeCompare(String(b.table), 'pt-BR'));
+  if (!tables.length) return '<p class="muted">Nenhuma mesa ocupada no momento.</p>';
+
+  return `
+    <div class="table-status-grid">
+      ${tables.map((table) => `
+        <div class="table-status-card">
+          <span>Mesa/Comanda</span>
+          <b>${htmlAttr(table.table)}</b>
+          <small>${table.orders} pedido(s) • ${table.ready} pronto(s) • ${money(table.total)}</small>
+        </div>
+      `).join('')}
+    </div>
   `;
 }
 
@@ -60,9 +111,11 @@ function orderCard(order) {
       </div>
 
       <div class="metric" style="margin-top:12px">
-        <b>${txt('pedidos.total', 'Total')}</b>
-        <b class="price">${money(order.total)}</b>
+        <b>Subtotal</b>
+        <b>${money(orderSubtotal(order))}</b>
       </div>
+
+      ${orderPaymentControls(order, 'cash')}
 
       <div class="actions" style="margin-top:12px">
         <button class="primary" onclick="pay(${order.id})">${txt('pedidos.marcarPago', 'Marcar como pago')}</button>
@@ -93,28 +146,42 @@ function durationLabel(minutes) {
 
 async function reports() {
   const orders = await API.get('/api/orders');
-  const paidOrders = orders.filter((order) => order.paid);
-  const total = paidOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const paidOrders = orders.filter((order) => order.paid && localDateValue(order.paidAt || order.createdAt) === cashReportDate);
+  const total = paidOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
   const items = {};
+  const payments = {};
+  const totalDiscount = paidOrders.reduce((sum, order) => sum + orderDiscount(order), 0);
+  const totalService = paidOrders.reduce((sum, order) => sum + orderServiceFee(order), 0);
 
   paidOrders.forEach((order) => {
+    const method = order.paymentMethod || 'nao_informado';
+    if (!payments[method]) payments[method] = { count: 0, total: 0 };
+    payments[method].count += 1;
+    payments[method].total += orderFinalTotal(order);
+
     order.items.forEach((item) => {
       items[item.name] = (items[item.name] || 0) + Number(item.qty || 1);
     });
   });
 
   const topItems = Object.entries(items).sort((a, b) => b[1] - a[1]);
+  const paymentRows = Object.entries(payments).sort((a, b) => b[1].total - a[1].total);
   const durations = paidOrders.map(orderDurationMinutes).filter((value) => value !== null);
   const avgDuration = durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : null;
 
   document.getElementById('content').innerHTML = `
-    <button class="primary print-btn" onclick="printVisibleReportDocument()">${txt('relatorios.botaoPdf', 'Salvar/Imprimir PDF')}</button>
+    <div class="report-actions">
+      <button class="primary print-btn" onclick="printVisibleReportDocument()">${txt('relatorios.botaoPdf', 'Salvar/Imprimir PDF')}</button>
+      <label>Data do relatório
+        <input id="cashReportDate" type="date" value="${cashReportDate}" onchange="setCashReportDate(this.value)">
+      </label>
+    </div>
 
     <section class="report-page" style="margin-top:16px">
       <div class="report-head">
         <div>
           <h1>${txt('relatorios.titulo', 'Relatório Quintal do Zé')}</h1>
-          <p>${txt('relatorios.fechamento', 'Fechamento local')} • ${new Date().toLocaleDateString('pt-BR')}</p>
+          <p>${txt('relatorios.fechamento', 'Fechamento local')} • ${new Date(`${cashReportDate}T00:00:00`).toLocaleDateString('pt-BR')}</p>
         </div>
         <img src="/assets/logo.jpg" alt="Logo Quintal do Zé">
       </div>
@@ -124,6 +191,21 @@ async function reports() {
         <div class="metric"><span>${txt('relatorios.faturamento', 'Faturamento')}</span><b>${money(total)}</b></div>
         <div class="metric"><span>${txt('relatorios.ticketMedio', 'Ticket médio')}</span><b>${money(paidOrders.length ? total / paidOrders.length : 0)}</b></div>
         <div class="metric"><span>Tempo médio por pedido</span><b>${durationLabel(avgDuration)}</b></div>
+      </div>
+
+      <div class="grid g2" style="margin-top:18px">
+        <div class="metric"><span>Taxas de serviço</span><b>${money(totalService)}</b></div>
+        <div class="metric"><span>Descontos</span><b>${money(totalDiscount)}</b></div>
+      </div>
+
+      <h2>Resumo por pagamento</h2>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Forma</th><th>Pedidos</th><th>Total</th></tr></thead>
+          <tbody>
+            ${paymentRows.length ? paymentRows.map(([method, data]) => `<tr><td>${paymentMethodLabel(method)}</td><td>${data.count}</td><td>${money(data.total)}</td></tr>`).join('') : `<tr><td colspan="3">Sem pagamentos nesta data.</td></tr>`}
+          </tbody>
+        </table>
       </div>
 
       <h2>${txt('relatorios.produtosMaisVendidos', 'Produtos mais vendidos')}</h2>
@@ -139,9 +221,9 @@ async function reports() {
       <h2>${txt('relatorios.pedidosPagos', 'Pedidos pagos')}</h2>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>${txt('relatorios.mesa', 'Mesa')}</th><th>${txt('relatorios.garcom', 'Garçom')}</th><th>${txt('relatorios.data', 'Data')}</th><th>Tempo</th><th>${txt('relatorios.total', 'Total')}</th></tr></thead>
+          <thead><tr><th>${txt('relatorios.mesa', 'Mesa')}</th><th>${txt('relatorios.garcom', 'Garçom')}</th><th>${txt('relatorios.data', 'Data')}</th><th>Pagamento</th><th>Tempo</th><th>${txt('relatorios.total', 'Total')}</th></tr></thead>
           <tbody>
-            ${paidOrders.length ? paidOrders.map((order) => `<tr><td>${order.table}</td><td>${order.waiter || '-'}</td><td>${dateTime(order.createdAt)}</td><td>${durationLabel(orderDurationMinutes(order))}</td><td>${money(order.total)}</td></tr>`).join('') : `<tr><td colspan="5">${txt('relatorios.nenhumPago', 'Nenhum pedido pago ainda.')}</td></tr>`}
+            ${paidOrders.length ? paidOrders.map((order) => `<tr><td>${order.table}</td><td>${order.waiter || '-'}</td><td>${dateTime(order.createdAt)}</td><td>${paymentMethodLabel(order.paymentMethod)}</td><td>${durationLabel(orderDurationMinutes(order))}</td><td>${money(orderFinalTotal(order))}</td></tr>`).join('') : `<tr><td colspan="6">${txt('relatorios.nenhumPago', 'Nenhum pedido pago ainda.')}</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -149,15 +231,21 @@ async function reports() {
   `;
 }
 
+window.setCashReportDate = (value) => {
+  cashReportDate = value || todayDateValue();
+  reports();
+};
+
 async function pay(id) {
-  await API.put('/api/orders/' + id + '/pay', {});
+  await API.put('/api/orders/' + id + '/pay', paymentBodyFromControls(id, 'cash'));
   toast(txt('pedidos.pedidoPago', 'Pedido pago.'));
   cash();
 }
 
 async function cancelOrder(id) {
   if (!confirm(txt('pedidos.confirmarCancelar', 'Cancelar pedido?'))) return;
-  await API.put('/api/orders/' + id + '/status', { status: 'cancelado' });
+  const cancelReason = prompt('Informe o motivo do cancelamento:', '') || '';
+  await API.put('/api/orders/' + id + '/status', { status: 'cancelado', cancelReason });
   toast(txt('pedidos.pedidoCancelado', 'Pedido cancelado.'));
   cash();
 }

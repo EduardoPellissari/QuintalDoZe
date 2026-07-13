@@ -62,8 +62,137 @@ function money(value) {
   });
 }
 
+function htmlAttr(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function dateTime(value) {
   return new Date(value).toLocaleString('pt-BR');
+}
+
+function todayDateValue() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10);
+}
+
+function localDateValue(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
+}
+
+const PAYMENT_METHODS = [
+  { value: 'pix', label: 'Pix' },
+  { value: 'dinheiro', label: 'Dinheiro' },
+  { value: 'debito', label: 'Cartão débito' },
+  { value: 'credito', label: 'Cartão crédito' },
+  { value: 'voucher', label: 'Voucher' },
+  { value: 'misto', label: 'Pagamento misto' },
+];
+
+function paymentMethodLabel(value) {
+  const method = PAYMENT_METHODS.find((item) => item.value === value);
+  return method ? method.label : 'Não informado';
+}
+
+function orderSubtotal(order) {
+  if (Number(order?.subtotal || 0) > 0) return Number(order.subtotal);
+  return (order?.items || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
+}
+
+function orderServiceFee(order) {
+  return Math.max(Number(order?.serviceFee || 0), 0);
+}
+
+function orderDiscount(order) {
+  return Math.max(Number(order?.discount || 0), 0);
+}
+
+function orderFinalTotal(order) {
+  const fallback = orderSubtotal(order) + orderServiceFee(order) - orderDiscount(order);
+  return Math.max(Number(order?.total ?? fallback), 0);
+}
+
+function paymentFieldId(id, scope, field) {
+  return `${scope}-${field}-${id}`;
+}
+
+function paymentOptions(selected = '') {
+  return PAYMENT_METHODS
+    .map((method) => `<option value="${method.value}" ${selected === method.value ? 'selected' : ''}>${method.label}</option>`)
+    .join('');
+}
+
+function orderPaymentControls(order, scope) {
+  const subtotal = orderSubtotal(order);
+  const serviceFee = orderServiceFee(order);
+  const discount = orderDiscount(order);
+  const total = Math.max(subtotal + serviceFee - discount, 0);
+  const method = order.paymentMethod || 'pix';
+
+  return `
+    <div class="payment-box" data-payment-box="${scope}-${order.id}" data-subtotal="${subtotal}">
+      <div class="payment-grid">
+        <label>Forma de pagamento
+          <select id="${paymentFieldId(order.id, scope, 'method')}" class="payment-control" data-order="${order.id}" data-scope="${scope}">
+            ${paymentOptions(method)}
+          </select>
+        </label>
+
+        <label>Taxa de serviço
+          <input id="${paymentFieldId(order.id, scope, 'service')}" class="payment-control" data-order="${order.id}" data-scope="${scope}" type="number" min="0" step="0.01" value="${serviceFee || ''}" placeholder="Ex: 10.00">
+        </label>
+
+        <label>Desconto
+          <input id="${paymentFieldId(order.id, scope, 'discount')}" class="payment-control" data-order="${order.id}" data-scope="${scope}" type="number" min="0" step="0.01" value="${discount || ''}" placeholder="Ex: 5.00">
+        </label>
+
+        <label>Observação
+          <input id="${paymentFieldId(order.id, scope, 'note')}" value="${htmlAttr(order.paymentNote || '')}" placeholder="Ex: parte Pix, parte cartão">
+        </label>
+      </div>
+
+      <div class="payment-total">
+        <span>Total a receber</span>
+        <b id="${paymentFieldId(order.id, scope, 'total')}">${money(total)}</b>
+      </div>
+    </div>
+  `;
+}
+
+function updatePaymentPreview(id, scope) {
+  const box = document.querySelector(`[data-payment-box="${scope}-${id}"]`);
+  if (!box) return;
+
+  const subtotal = Number(box.dataset.subtotal || 0);
+  const serviceFee = Number(document.getElementById(paymentFieldId(id, scope, 'service'))?.value || 0);
+  const discount = Number(document.getElementById(paymentFieldId(id, scope, 'discount'))?.value || 0);
+  const total = Math.max(subtotal + serviceFee - discount, 0);
+  const totalElement = document.getElementById(paymentFieldId(id, scope, 'total'));
+  if (totalElement) totalElement.textContent = money(total);
+}
+
+function bindPaymentControls(scope) {
+  document.querySelectorAll(`.payment-control[data-scope="${scope}"]`).forEach((input) => {
+    input.addEventListener('input', () => updatePaymentPreview(input.dataset.order, scope));
+    input.addEventListener('change', () => updatePaymentPreview(input.dataset.order, scope));
+  });
+}
+
+function paymentBodyFromControls(id, scope) {
+  return {
+    paymentMethod: document.getElementById(paymentFieldId(id, scope, 'method'))?.value || 'pix',
+    serviceFee: Number(document.getElementById(paymentFieldId(id, scope, 'service'))?.value || 0),
+    discount: Number(document.getElementById(paymentFieldId(id, scope, 'discount'))?.value || 0),
+    paymentNote: document.getElementById(paymentFieldId(id, scope, 'note'))?.value || '',
+  };
 }
 
 function openReportPrintDocument({
