@@ -474,6 +474,59 @@ textarea {
   gap:12px
 }
 
+.table-picker {
+  margin-top:12px;
+  padding:14px;
+  border-radius:18px;
+  background:rgba(246,196,0,.07);
+  border:1px solid rgba(246,196,0,.16)
+}
+
+.table-picker-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px
+}
+
+.table-picker-head span {
+  color:var(--gold);
+  font-weight:900
+}
+
+.table-picker-head small {
+  color:var(--muted);
+  font-weight:850
+}
+
+.table-picker-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(52px,1fr));
+  gap:8px
+}
+
+.table-picker-chip {
+  min-height:44px;
+  padding:9px;
+  border-radius:14px;
+  background:rgba(255,255,255,.06);
+  color:var(--txt);
+  border:1px solid rgba(255,255,255,.12)
+}
+
+.table-picker-chip:hover {
+  background:linear-gradient(135deg,var(--gold),var(--gold2));
+  color:#151515
+}
+
+.table-picker-note {
+  margin:10px 0 0;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.45
+}
+
 .actions {
   display:flex;
   gap:8px;

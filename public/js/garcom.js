@@ -14,9 +14,19 @@ setText('pageSub', txt('garcom.subtitulo', 'Crie comandas para enviar à cozinha
 let products = [];
 let cart = [];
 let selectedCategory = txt('garcom.todos', 'Todos');
+let openOrders = [];
+
+// Altere este numero se o restaurante tiver mais ou menos mesas fixas.
+const TOTAL_TABLES = 30;
 
 async function init() {
-  products = (await API.get('/api/products?usage=orders')).filter((product) => product.active !== false);
+  const [orderProducts, orders] = await Promise.all([
+    API.get('/api/products?usage=orders'),
+    API.get('/api/orders'),
+  ]);
+
+  products = orderProducts.filter((product) => product.active !== false);
+  openOrders = orders.filter(isOpenOrder);
   render();
 }
 
@@ -67,6 +77,85 @@ function selectCategory(category) {
   renderMenu();
 }
 
+function isOpenOrder(order) {
+  return !order.paid && order.status !== 'cancelado';
+}
+
+function configuredTables() {
+  return Array.from({ length: TOTAL_TABLES }, (_, index) => String(index + 1));
+}
+
+function normalizedTable(value) {
+  const table = String(value || '').trim();
+  if (/^\d+$/.test(table)) return String(Number(table));
+  return table;
+}
+
+function occupiedTables() {
+  return new Set(openOrders.map((order) => normalizedTable(order.table)).filter(Boolean));
+}
+
+function availableTables() {
+  const occupied = occupiedTables();
+  return configuredTables().filter((table) => !occupied.has(table));
+}
+
+async function refreshOpenOrders() {
+  const orders = await API.get('/api/orders');
+  openOrders = orders.filter(isOpenOrder);
+}
+
+async function syncTableSuggestions() {
+  try {
+    await refreshOpenOrders();
+    renderTableSuggestions();
+  } catch (err) {
+    console.warn('Nao foi possivel atualizar as mesas disponiveis.', err);
+  }
+}
+
+function renderTableSuggestions() {
+  const element = document.getElementById('tableSuggestions');
+  const datalist = document.getElementById('availableTablesList');
+  if (!element || !datalist) return;
+
+  const freeTables = availableTables();
+  const usedTables = Array.from(occupiedTables())
+    .filter((table) => configuredTables().includes(table))
+    .sort((a, b) => Number(a) - Number(b));
+
+  datalist.innerHTML = freeTables.map((table) => `<option value="${htmlAttr(table)}">Mesa ${htmlAttr(table)} livre</option>`).join('');
+
+  element.innerHTML = `
+    <div class="table-picker-head">
+      <span>${freeTables.length} mesa(s) livre(s)</span>
+      <small>${usedTables.length} em uso</small>
+    </div>
+
+    <div class="table-picker-grid">
+      ${freeTables.length ? freeTables.map((table) => `
+        <button type="button" class="table-picker-chip" onclick="selectTableSuggestion('${htmlAttr(table)}')">${htmlAttr(table)}</button>
+      `).join('') : '<p class="muted">Todas as mesas cadastradas estão em uso.</p>'}
+    </div>
+
+    ${usedTables.length ? `
+      <p class="table-picker-note">
+        Mesas em uso não aparecem na seleção rápida: ${usedTables.join(', ')}.
+        Para adicionar mais itens em uma delas, digite o numero manualmente.
+      </p>
+    ` : `
+      <p class="table-picker-note">Se precisar usar uma comanda fora da lista, digite manualmente.</p>
+    `}
+  `;
+}
+
+function selectTableSuggestion(table) {
+  const input = document.getElementById('table');
+  if (!input) return;
+  input.value = table;
+  input.focus();
+}
+
 function render() {
   document.getElementById('content').innerHTML = `
     <div class="grid g2">
@@ -88,13 +177,16 @@ function render() {
         <form id="orderForm">
           <div class="form-row">
             <label>${txt('garcom.mesa', 'Mesa/Comanda')}
-              <input id="table" required placeholder="${txt('garcom.mesaPlaceholder', 'Ex: 12')}">
+              <input id="table" required list="availableTablesList" placeholder="Escolha uma mesa livre ou digite manualmente">
+              <datalist id="availableTablesList"></datalist>
             </label>
 
             <label>${txt('garcom.garcom', 'Garçom')}
               <input id="waiter" required placeholder="${txt('garcom.garcomPlaceholder', 'Digite o nome')}">
             </label>
           </div>
+
+          <div id="tableSuggestions" class="table-picker"></div>
 
           <label>${txt('garcom.observacoes', 'Observações')}
             <textarea id="notes" placeholder="${txt('garcom.observacoesPlaceholder', 'Ex: sem cebola, ponto da carne...')}"></textarea>
@@ -109,6 +201,7 @@ function render() {
   `;
 
   document.getElementById('orderForm').onsubmit = send;
+  renderTableSuggestions();
   renderMenu();
   renderCart();
 }
@@ -210,10 +303,15 @@ async function send(event) {
     toast(txt('garcom.pedidoEnviado', 'Pedido enviado para cozinha.'));
     cart = [];
     document.getElementById('orderForm').reset();
+    await refreshOpenOrders();
+    renderTableSuggestions();
     renderCart();
   } catch (err) {
     toast(err.message);
   }
 }
 
+window.selectTableSuggestion = selectTableSuggestion;
+
 init();
+setInterval(syncTableSuggestions, 15000);
