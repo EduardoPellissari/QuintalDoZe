@@ -211,6 +211,26 @@ function productUsageLabel(product) {
   return match ? match.label : productUsageOptions[0].label;
 }
 
+function productStatusValue(product) {
+  if (product?.active === false) return 'inactive';
+  if (product?.soldOut === true) return 'soldOut';
+  return 'active';
+}
+
+function productStatusLabel(product) {
+  const value = productStatusValue(product);
+  if (value === 'inactive') return 'Inativo';
+  if (value === 'soldOut') return 'Esgotado';
+  return 'Disponível';
+}
+
+function productStatusBadge(product) {
+  const value = productStatusValue(product);
+  if (value === 'inactive') return 'warn';
+  if (value === 'soldOut') return 'danger';
+  return 'ok';
+}
+
 async function renderProducts() {
   setText('pageTitle', txt('admin.produtos.titulo', 'Produtos'));
   setText('pageSub', 'Separe os produtos do atendente e os itens usados somente nos orçamentos.');
@@ -219,13 +239,14 @@ async function renderProducts() {
   const orderProducts = products.filter((product) => productUsageValue(product) === 'orders');
   const quoteOnlyProducts = products.filter((product) => productUsageValue(product) === 'quotes');
   const activeProducts = products.filter((product) => product.active !== false).length;
+  const soldOutProducts = products.filter((product) => product.soldOut === true).length;
 
   content.innerHTML = `
     <section class="dashboard-cards">
       <div class="dash-card"><b>${products.length}</b><span>${txt('admin.produtos.cardProdutos', 'Produtos')}</span></div>
       <div class="dash-card"><b>${orderProducts.length}</b><span>Pedidos / atendente</span></div>
       <div class="dash-card"><b>${quoteOnlyProducts.length}</b><span>Orçamentos</span></div>
-      <div class="dash-card"><b>${activeProducts}</b><span>${txt('admin.produtos.cardAtivos', 'Ativos')}</span></div>
+      <div class="dash-card"><b>${soldOutProducts}</b><span>Esgotados</span></div>
     </section>
 
     <div class="admin-layout admin-products">
@@ -253,9 +274,10 @@ async function renderProducts() {
             </label>
 
             <label>${txt('admin.produtos.status', 'Status')}
-              <select id="pActive">
-                <option value="true">${txt('admin.produtos.statusAtivo', 'Ativo')}</option>
-                <option value="false">${txt('admin.produtos.statusInativo', 'Inativo')}</option>
+              <select id="pStatus">
+                <option value="active">Disponível</option>
+                <option value="soldOut">Esgotado</option>
+                <option value="inactive">Inativo</option>
               </select>
             </label>
 
@@ -306,10 +328,11 @@ async function renderProducts() {
                   <td>${product.category || '-'}</td>
                   <td>${money(product.price)}</td>
                   <td><span class="badge ${productUsageValue(product) === 'quotes' ? 'warn' : 'ok'}">${productUsageLabel(product)}</span></td>
-                  <td><span class="badge ${product.active !== false ? 'ok' : 'warn'}">${product.active !== false ? txt('admin.produtos.statusAtivo', 'Ativo') : txt('admin.produtos.statusInativo', 'Inativo')}</span></td>
+                  <td><span class="badge ${productStatusBadge(product)}">${productStatusLabel(product)}</span></td>
                   <td>
                     <div class="actions">
                       <button class="soft" onclick="editProduct(${product.id})">Editar</button>
+                      ${productUsageValue(product) === 'orders' ? `<button class="soft" onclick="toggleSoldOut(${product.id}, ${product.soldOut === true ? 'false' : 'true'})">${product.soldOut === true ? 'Disponibilizar' : 'Esgotar'}</button>` : ''}
                       <button class="danger" onclick="deleteProduct(${product.id})">Excluir</button>
                     </div>
                   </td>
@@ -323,7 +346,7 @@ async function renderProducts() {
   `;
 
   if (editingProduct) {
-    document.getElementById('pActive').value = String(editingProduct.active !== false);
+    document.getElementById('pStatus').value = productStatusValue(editingProduct);
     document.getElementById('pUsage').value = productUsageValue(editingProduct);
   }
 
@@ -341,12 +364,14 @@ async function renderProducts() {
 async function saveProduct(event) {
   event.preventDefault();
 
+  const status = document.getElementById('pStatus').value;
   const body = {
     name: document.getElementById('pName').value,
     category: document.getElementById('pCat').value,
     price: Number(document.getElementById('pPrice').value),
     description: document.getElementById('pDesc').value,
-    active: document.getElementById('pActive').value === 'true',
+    active: status !== 'inactive',
+    soldOut: status === 'soldOut',
     usage: document.getElementById('pUsage').value,
   };
 
@@ -372,6 +397,12 @@ window.deleteProduct = async (id) => {
   if (!confirm(txt('admin.produtos.confirmarExcluir', 'Excluir este produto?'))) return;
   await API.del('/api/products/' + id);
   toast(txt('admin.produtos.excluido', 'Produto excluído.'));
+  renderProducts();
+};
+
+window.toggleSoldOut = async (id, soldOut) => {
+  await API.put('/api/products/' + id + '/sold-out', { soldOut });
+  toast(soldOut ? 'Produto marcado como esgotado.' : 'Produto disponível novamente.');
   renderProducts();
 };
 
@@ -516,7 +547,7 @@ async function renderQuotes() {
     API.get('/api/products?usage=quotes'),
   ]);
   quoteProducts = products
-    .filter((product) => product.active !== false)
+    .filter((product) => product.active !== false && product.soldOut !== true)
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'));
 
   const sortedQuotes = [...quotes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -675,6 +706,7 @@ function quoteCard(quote) {
       <div class="actions" style="margin-top:12px">
         <button class="soft" onclick="editQuote(${quote.id})">Editar</button>
         <button class="soft" onclick="printQuote(${quote.id})">Gerar PDF</button>
+        ${quote.convertedOrderId ? `<span class="badge ok">Pedido #${quote.convertedOrderId}</span>` : `<button class="primary compact-action" onclick="approveQuote(${quote.id})">Aprovar e enviar</button>`}
         <button class="danger" onclick="deleteQuote(${quote.id})">Excluir</button>
       </div>
     </article>
@@ -727,6 +759,14 @@ window.deleteQuote = async (id) => {
   if (!confirm('Excluir este orçamento?')) return;
   await API.del('/api/quotes/' + id);
   toast('Orçamento excluído.');
+  renderQuotes();
+};
+
+window.approveQuote = async (id) => {
+  const table = prompt('Informe a mesa/comanda ou nome do evento:', `Evento ${id}`) || `Evento ${id}`;
+  const waiter = prompt('Responsável pelo evento/pedido:', 'Orçamento') || 'Orçamento';
+  await API.post('/api/quotes/' + id + '/approve', { table, waiter });
+  toast('Orçamento aprovado e enviado como pedido/evento.');
   renderQuotes();
 };
 
@@ -811,7 +851,10 @@ async function renderCash() {
   setText('pageTitle', txt('admin.caixa.titulo', 'Caixa'));
   setText('pageSub', txt('admin.caixa.subtitulo', 'Fechamento de pedidos em aberto dentro do painel admin.'));
 
-  const orders = await API.get('/api/orders');
+  const [orders, cashInfo] = await Promise.all([
+    API.get('/api/orders'),
+    API.get('/api/cash-sessions/current'),
+  ]);
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
   const groups = groupOrdersByTable(openOrders);
   if (!selectedAdminCashTable || !groups.some((group) => group.table === selectedAdminCashTable)) {
@@ -828,6 +871,18 @@ async function renderCash() {
       <div class="dash-card"><b>${readyOrders}</b><span>${txt('admin.caixa.cardProntos', 'Prontos para fechar')}</span></div>
       <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
       <div class="dash-card"><b>${money(totalOpen)}</b><span>${txt('admin.caixa.cardTotal', 'Total em aberto')}</span></div>
+    </section>
+
+    ${cashSessionPanel(cashInfo, 'adminCash')}
+
+    <section class="panel" style="margin-top:18px">
+      <div class="admin-form-head">
+        <div>
+          <h3>Mapa das mesas</h3>
+          <p>Veja rapidamente mesas livres, em atendimento, na cozinha ou prontas para fechar.</p>
+        </div>
+      </div>
+      ${tableMapPanel(openOrders, selectedAdminCashTable, 'selectAdminCashTable')}
     </section>
 
     <section class="panel">
@@ -882,6 +937,25 @@ window.transferAdminTable = async (encoded) => {
   renderCash();
 };
 
+window.openCashSession = async (scope) => {
+  await API.post('/api/cash-sessions/open', cashSessionOpenBody(scope));
+  toast('Caixa aberto.');
+  renderCash();
+};
+
+window.addCashSessionEntry = async (scope) => {
+  await API.post('/api/cash-sessions/entry', cashSessionEntryBody(scope));
+  toast('Movimentação registrada.');
+  renderCash();
+};
+
+window.closeCashSession = async (scope) => {
+  if (!confirm('Fechar o caixa do dia?')) return;
+  const session = await API.post('/api/cash-sessions/close', cashSessionCloseBody(scope));
+  toast(`Caixa fechado. Diferença: ${money(session.difference)}`);
+  renderCash();
+};
+
 function orderDurationMinutes(order) {
   const start = new Date(order.createdAt).getTime();
   const endSource = order.readyAt || order.paidAt || order.deliveredAt;
@@ -904,7 +978,11 @@ async function renderReports() {
   setText('pageTitle', txt('admin.relatorios.titulo', 'Relatórios'));
   setText('pageSub', txt('admin.relatorios.subtitulo', 'Resumo financeiro e produtos mais vendidos dentro do painel admin.'));
 
-  const orders = await API.get('/api/orders');
+  const [orders, cashSessions, activityLog] = await Promise.all([
+    API.get('/api/orders'),
+    API.get('/api/cash-sessions?date=' + adminReportDate),
+    API.get('/api/activity-log?date=' + adminReportDate),
+  ]);
   const paidOrders = orders.filter((order) => order.paid && localDateValue(order.paidAt || order.createdAt) === adminReportDate);
   const total = paidOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
   const items = {};
@@ -986,6 +1064,8 @@ async function renderReports() {
           </tbody>
         </table>
       </div>
+
+      ${advancedReportHtml({ orders, reportDate: adminReportDate, cashSessions, activityLog })}
     </section>
   `;
 }

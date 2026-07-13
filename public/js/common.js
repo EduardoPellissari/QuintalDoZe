@@ -89,6 +89,12 @@ function localDateValue(value) {
   return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
 }
 
+const TOTAL_TABLES = 30;
+
+function configuredRestaurantTables() {
+  return Array.from({ length: TOTAL_TABLES }, (_, index) => String(index + 1));
+}
+
 const PAYMENT_METHODS = [
   { value: 'pix', label: 'Pix' },
   { value: 'dinheiro', label: 'Dinheiro' },
@@ -103,9 +109,34 @@ function paymentMethodLabel(value) {
   return method ? method.label : 'Não informado';
 }
 
+function itemBasePrice(item) {
+  return Number(item?.basePrice ?? item?.price ?? 0);
+}
+
+function itemExtraPrice(item) {
+  return Math.max(Number(item?.extraPrice || 0), 0);
+}
+
+function itemUnitPrice(item) {
+  return itemBasePrice(item) + itemExtraPrice(item);
+}
+
+function itemLineTotal(item) {
+  return itemUnitPrice(item) * Number(item?.qty || 1);
+}
+
+function itemDetailsHtml(item) {
+  const details = [
+    item?.note ? `Obs.: ${htmlAttr(item.note)}` : '',
+    itemExtraPrice(item) ? `Acréscimo: ${money(itemExtraPrice(item))} por un.` : '',
+  ].filter(Boolean);
+
+  return details.length ? `<small class="muted item-detail">${details.join(' • ')}</small>` : '';
+}
+
 function orderSubtotal(order) {
   if (Number(order?.subtotal || 0) > 0) return Number(order.subtotal);
-  return (order?.items || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
+  return (order?.items || []).reduce((sum, item) => sum + itemLineTotal(item), 0);
 }
 
 function orderServiceFee(order) {
@@ -267,6 +298,42 @@ function tableSummaryCards(openOrders, selectedTable, selectFunctionName) {
   `;
 }
 
+function tableMapPanel(openOrders, selectedTable, selectFunctionName) {
+  const groups = groupOrdersByTable(openOrders);
+  const groupMap = new Map(groups.map((group) => [group.table, group]));
+  const configured = configuredRestaurantTables();
+  const extras = groups.map((group) => group.table).filter((table) => !configured.includes(table));
+  const tables = [...configured, ...extras];
+
+  return `
+    <div class="table-map-grid">
+      ${tables.map((table) => {
+        const group = groupMap.get(table);
+        const active = tableKey(selectedTable) === table;
+        const status = !group
+          ? { key: 'free', label: 'Livre' }
+          : group.orders.every((order) => order.status === 'pronto')
+            ? { key: 'ready', label: 'Pronta' }
+            : group.orders.some((order) => ['pendente', 'preparando'].includes(order.status))
+              ? { key: 'kitchen', label: 'Cozinha' }
+              : { key: 'open', label: 'Aberta' };
+
+        return `
+          <button
+            type="button"
+            class="table-map-card status-${status.key} ${active ? 'active' : ''}"
+            ${group ? `onclick="${selectFunctionName}('${encodedTable(table)}')"` : ''}
+          >
+            <b>${htmlAttr(table)}</b>
+            <span>${status.label}</span>
+            ${group ? `<small>${group.orders.length} pedido(s) • ${money(group.subtotal)}</small>` : '<small>Disponível</small>'}
+          </button>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 function tableTransferControls(table, scope, transferFunctionName) {
   if (!transferFunctionName) return '';
 
@@ -319,8 +386,8 @@ function tableCheckoutPanel(openOrders, selectedTable, scope, closeFunctionName,
 
             ${(order.items || []).map((item) => `
               <div class="cart-line">
-                <span>${Number(item.qty || 1)}x ${htmlAttr(item.name)}</span>
-                <b>${money(Number(item.price || 0) * Number(item.qty || 1))}</b>
+                <span>${Number(item.qty || 1)}x ${htmlAttr(item.name)}${itemDetailsHtml(item)}</span>
+                <b>${money(itemLineTotal(item))}</b>
               </div>
             `).join('')}
 
@@ -336,7 +403,256 @@ function tableCheckoutPanel(openOrders, selectedTable, scope, closeFunctionName,
       ${tablePaymentControls(group.table, group.subtotal, scope)}
       ${tableTransferControls(group.table, scope, transferFunctionName)}
 
-      <button class="primary table-close-button" type="button" onclick="${closeFunctionName}('${encodedTable(group.table)}')">Fechar mesa/comanda</button>
+      <div class="table-final-actions">
+        <button class="soft" type="button" onclick="printTableReceipt('${encodedTable(group.table)}', '${scope}')">Pré-conta PDF</button>
+        <button class="primary table-close-button" type="button" onclick="${closeFunctionName}('${encodedTable(group.table)}')">Fechar mesa/comanda</button>
+      </div>
+    </div>
+  `;
+}
+
+window.printTableReceipt = async (encoded, scope) => {
+  const table = decodedTable(encoded);
+  const orders = await API.get('/api/orders');
+  const openOrders = orders.filter((order) => tableKey(order.table) === table && !order.paid && order.status !== 'cancelado');
+  if (!openOrders.length) return toast('Nenhum pedido aberto para gerar pré-conta.');
+
+  const subtotal = openOrders.reduce((sum, order) => sum + orderSubtotal(order), 0);
+  const payment = paymentBodyFromControls(encodedTable(table), scope);
+  const total = Math.max(subtotal + Number(payment.serviceFee || 0) - Number(payment.discount || 0), 0);
+  const splitCount = Math.max(Number(payment.paymentSplitCount || 1), 1);
+  const generatedAt = new Date().toLocaleString('pt-BR');
+
+  const metricsHtml = `
+    <div class="grid g4">
+      <div class="metric"><span>Mesa/Comanda</span><b>${htmlAttr(table)}</b></div>
+      <div class="metric"><span>Pedidos</span><b>${openOrders.length}</b></div>
+      <div class="metric"><span>Subtotal</span><b>${money(subtotal)}</b></div>
+      <div class="metric"><span>Divisão</span><b>${splitCount}x de ${money(total / splitCount)}</b></div>
+    </div>
+  `;
+
+  const bodyHtml = `
+    <h2>Itens consumidos</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Item</th><th>Qtd.</th><th>Unit.</th><th>Total</th></tr></thead>
+        <tbody>
+          ${openOrders.flatMap((order) => (order.items || []).map((item) => `
+            <tr>
+              <td>${htmlAttr(item.name)}${item.note ? `<br><small>${htmlAttr(item.note)}</small>` : ''}</td>
+              <td>${Number(item.qty || 1)}</td>
+              <td>${money(itemUnitPrice(item))}</td>
+              <td>${money(itemLineTotal(item))}</td>
+            </tr>
+          `)).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid g2" style="margin-top:18px">
+      <div class="metric"><span>Taxa de serviço</span><b>${money(payment.serviceFee)}</b></div>
+      <div class="metric"><span>Desconto</span><b>${money(payment.discount)}</b></div>
+    </div>
+
+    ${payment.paymentNote ? `<p class="pdf-print-note">${htmlAttr(payment.paymentNote)}</p>` : ''}
+
+    <div class="pdf-print-total">
+      <span>Total da pré-conta</span>
+      <b>${money(total)}</b>
+    </div>
+  `;
+
+  return openReportPrintDocument({
+    documentTitle: `Pré-conta ${table}`,
+    heading: 'Pré-conta Quintal do Zé',
+    subtitle: `Mesa/comanda • ${generatedAt}`,
+    details: `Documento para conferência antes do pagamento`,
+    metricsHtml,
+    bodyHtml,
+    referenceLabel: 'Mesa',
+    referenceText: table,
+    blockedMessage: 'Permita pop-ups para imprimir a pré-conta.',
+  });
+};
+
+function cashSessionPanel(info, scope) {
+  const current = info?.current;
+  const recent = info?.sessions || [];
+
+  if (!current) {
+    return `
+      <section class="panel cash-session-panel">
+        <div class="admin-form-head">
+          <div>
+            <h3>Fechamento de caixa do dia</h3>
+            <p>Abra o caixa para controlar dinheiro inicial, sangrias, suprimentos e fechamento.</p>
+          </div>
+          <span class="badge warn">Caixa fechado</span>
+        </div>
+
+        <div class="cash-session-grid">
+          <label>Dinheiro inicial
+            <input id="${scope}CashOpening" type="number" min="0" step="0.01" placeholder="Ex: 200.00">
+          </label>
+          <label>Observação
+            <input id="${scope}CashOpeningNote" placeholder="Opcional">
+          </label>
+          <button class="primary" type="button" onclick="openCashSession('${scope}')">Abrir caixa</button>
+        </div>
+
+        ${recent.length ? `<p class="table-picker-note">Último caixa: ${recent[0].status === 'closed' ? 'fechado' : 'aberto'} em ${dateTime(recent[0].openedAt)}</p>` : ''}
+      </section>
+    `;
+  }
+
+  const entries = current.entries || [];
+  const supplies = entries.filter((entry) => entry.type === 'suprimento').reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const withdrawals = entries.filter((entry) => entry.type === 'sangria').reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+  return `
+    <section class="panel cash-session-panel">
+      <div class="admin-form-head">
+        <div>
+          <h3>Caixa aberto</h3>
+          <p>Aberto em ${dateTime(current.openedAt)}. Registre movimentações e feche no fim do expediente.</p>
+        </div>
+        <span class="badge ok">Aberto</span>
+      </div>
+
+      <div class="grid g4">
+        <div class="metric"><span>Dinheiro inicial</span><b>${money(current.openingAmount)}</b></div>
+        <div class="metric"><span>Suprimentos</span><b>${money(supplies)}</b></div>
+        <div class="metric"><span>Sangrias</span><b>${money(withdrawals)}</b></div>
+        <div class="metric"><span>Movimentações</span><b>${entries.length}</b></div>
+      </div>
+
+      <p class="table-picker-note">No fechamento, o dinheiro esperado considera dinheiro inicial + vendas em Dinheiro + suprimentos - sangrias. Pagamento misto fica no relatório, mas não entra no dinheiro contado automaticamente.</p>
+
+      <div class="cash-session-grid" style="margin-top:14px">
+        <label>Tipo
+          <select id="${scope}CashEntryType">
+            <option value="suprimento">Suprimento</option>
+            <option value="sangria">Sangria</option>
+          </select>
+        </label>
+        <label>Valor
+          <input id="${scope}CashEntryAmount" type="number" min="0" step="0.01" placeholder="Ex: 50.00">
+        </label>
+        <label>Motivo
+          <input id="${scope}CashEntryNote" placeholder="Opcional">
+        </label>
+        <button class="soft" type="button" onclick="addCashSessionEntry('${scope}')">Registrar</button>
+      </div>
+
+      <div class="cash-session-grid" style="margin-top:14px">
+        <label>Dinheiro contado no caixa
+          <input id="${scope}CashCounted" type="number" min="0" step="0.01" placeholder="Valor contado">
+        </label>
+        <label>Observação de fechamento
+          <input id="${scope}CashCloseNote" placeholder="Opcional">
+        </label>
+        <button class="danger" type="button" onclick="closeCashSession('${scope}')">Fechar caixa</button>
+      </div>
+    </section>
+  `;
+}
+
+function cashSessionOpenBody(scope) {
+  return {
+    openingAmount: Number(document.getElementById(`${scope}CashOpening`)?.value || 0),
+    note: document.getElementById(`${scope}CashOpeningNote`)?.value || '',
+  };
+}
+
+function cashSessionEntryBody(scope) {
+  return {
+    type: document.getElementById(`${scope}CashEntryType`)?.value || 'suprimento',
+    amount: Number(document.getElementById(`${scope}CashEntryAmount`)?.value || 0),
+    note: document.getElementById(`${scope}CashEntryNote`)?.value || '',
+  };
+}
+
+function cashSessionCloseBody(scope) {
+  return {
+    countedCash: Number(document.getElementById(`${scope}CashCounted`)?.value || 0),
+    note: document.getElementById(`${scope}CashCloseNote`)?.value || '',
+  };
+}
+
+function advancedReportHtml({ orders, reportDate, cashSessions = [], activityLog = [] }) {
+  const paidOrders = orders.filter((order) => order.paid && localDateValue(order.paidAt || order.createdAt) === reportDate);
+  const canceledOrders = orders.filter((order) => order.status === 'cancelado' && localDateValue(order.canceledAt || order.createdAt) === reportDate);
+  const waiterStats = {};
+  const productRevenue = {};
+
+  paidOrders.forEach((order) => {
+    const waiter = order.waiter || 'Não informado';
+    if (!waiterStats[waiter]) waiterStats[waiter] = { count: 0, total: 0 };
+    waiterStats[waiter].count += 1;
+    waiterStats[waiter].total += orderFinalTotal(order);
+
+    (order.items || []).forEach((item) => {
+      const name = item.name || 'Item';
+      if (!productRevenue[name]) productRevenue[name] = { qty: 0, total: 0 };
+      productRevenue[name].qty += Number(item.qty || 1);
+      productRevenue[name].total += itemLineTotal(item);
+    });
+  });
+
+  const waiterRows = Object.entries(waiterStats).sort((a, b) => b[1].total - a[1].total);
+  const productRows = Object.entries(productRevenue).sort((a, b) => b[1].total - a[1].total).slice(0, 8);
+  const sessionRows = cashSessions.filter((session) => session.date === reportDate);
+
+  return `
+    <h2>Vendas por garçom</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Garçom</th><th>Pedidos</th><th>Total</th></tr></thead>
+        <tbody>
+          ${waiterRows.length ? waiterRows.map(([waiter, data]) => `<tr><td>${htmlAttr(waiter)}</td><td>${data.count}</td><td>${money(data.total)}</td></tr>`).join('') : '<tr><td colspan="3">Sem vendas por garçom nesta data.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Produtos por faturamento</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Produto</th><th>Qtd.</th><th>Total</th></tr></thead>
+        <tbody>
+          ${productRows.length ? productRows.map(([name, data]) => `<tr><td>${htmlAttr(name)}</td><td>${data.qty}</td><td>${money(data.total)}</td></tr>`).join('') : '<tr><td colspan="3">Sem produtos pagos nesta data.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Cancelamentos</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Mesa</th><th>Pedido</th><th>Motivo</th><th>Data</th></tr></thead>
+        <tbody>
+          ${canceledOrders.length ? canceledOrders.map((order) => `<tr><td>${htmlAttr(order.table)}</td><td>#${order.id}</td><td>${htmlAttr(order.cancelReason || '-')}</td><td>${dateTime(order.canceledAt || order.createdAt)}</td></tr>`).join('') : '<tr><td colspan="4">Nenhum cancelamento nesta data.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Caixa do dia</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Status</th><th>Inicial</th><th>Esperado</th><th>Contado</th><th>Diferença</th></tr></thead>
+        <tbody>
+          ${sessionRows.length ? sessionRows.map((session) => `<tr><td>${session.status === 'closed' ? 'Fechado' : 'Aberto'}</td><td>${money(session.openingAmount)}</td><td>${session.expectedCash === null ? '-' : money(session.expectedCash)}</td><td>${session.countedCash === null ? '-' : money(session.countedCash)}</td><td>${session.difference === null ? '-' : money(session.difference)}</td></tr>`).join('') : '<tr><td colspan="5">Nenhum caixa aberto nesta data.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Histórico recente</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Horário</th><th>Ação</th><th>Tipo</th></tr></thead>
+        <tbody>
+          ${activityLog.length ? activityLog.slice(0, 12).map((entry) => `<tr><td>${dateTime(entry.createdAt)}</td><td>${htmlAttr(entry.message)}</td><td>${htmlAttr(entry.type)}</td></tr>`).join('') : '<tr><td colspan="3">Sem histórico nesta data.</td></tr>'}
+        </tbody>
+      </table>
     </div>
   `;
 }

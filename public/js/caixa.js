@@ -29,7 +29,10 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
 });
 
 async function cash() {
-  const orders = await API.get('/api/orders');
+  const [orders, cashInfo] = await Promise.all([
+    API.get('/api/orders'),
+    API.get('/api/cash-sessions/current'),
+  ]);
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
   const groups = groupOrdersByTable(openOrders);
   if (!selectedCashTable || !groups.some((group) => group.table === selectedCashTable)) {
@@ -44,6 +47,18 @@ async function cash() {
       <div class="dash-card"><b>${openOrders.length}</b><span>Pedidos em aberto</span></div>
       <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
       <div class="dash-card"><b>${money(totalOpen)}</b><span>Total em aberto</span></div>
+    </section>
+
+    ${cashSessionPanel(cashInfo, 'cash')}
+
+    <section class="panel" style="margin-top:18px">
+      <div class="admin-form-head">
+        <div>
+          <h3>Mapa das mesas</h3>
+          <p>Veja rapidamente mesas livres, em atendimento, na cozinha ou prontas para fechar.</p>
+        </div>
+      </div>
+      ${tableMapPanel(openOrders, selectedCashTable, 'selectCashTable')}
     </section>
 
     <section class="panel">
@@ -98,6 +113,25 @@ window.transferCashTable = async (encoded) => {
   cash();
 };
 
+window.openCashSession = async (scope) => {
+  await API.post('/api/cash-sessions/open', cashSessionOpenBody(scope));
+  toast('Caixa aberto.');
+  cash();
+};
+
+window.addCashSessionEntry = async (scope) => {
+  await API.post('/api/cash-sessions/entry', cashSessionEntryBody(scope));
+  toast('Movimentação registrada.');
+  cash();
+};
+
+window.closeCashSession = async (scope) => {
+  if (!confirm('Fechar o caixa do dia?')) return;
+  const session = await API.post('/api/cash-sessions/close', cashSessionCloseBody(scope));
+  toast(`Caixa fechado. Diferença: ${money(session.difference)}`);
+  cash();
+};
+
 function orderDurationMinutes(order) {
   const start = new Date(order.createdAt).getTime();
   const endSource = order.readyAt || order.paidAt || order.deliveredAt;
@@ -117,7 +151,11 @@ function durationLabel(minutes) {
 }
 
 async function reports() {
-  const orders = await API.get('/api/orders');
+  const [orders, cashSessions, activityLog] = await Promise.all([
+    API.get('/api/orders'),
+    API.get('/api/cash-sessions?date=' + cashReportDate),
+    API.get('/api/activity-log?date=' + cashReportDate),
+  ]);
   const paidOrders = orders.filter((order) => order.paid && localDateValue(order.paidAt || order.createdAt) === cashReportDate);
   const total = paidOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
   const items = {};
@@ -199,6 +237,8 @@ async function reports() {
           </tbody>
         </table>
       </div>
+
+      ${advancedReportHtml({ orders, reportDate: cashReportDate, cashSessions, activityLog })}
     </section>
   `;
 }

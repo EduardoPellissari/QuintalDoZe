@@ -637,6 +637,11 @@ textarea {
   color:#ffdc4d
 }
 
+.badge.danger {
+  background:rgba(239,68,68,.14);
+  color:#ff8b8b
+}
+
 .badge.blue {
   background:rgba(102,183,255,.16);
   color:#92ccff
@@ -764,6 +769,75 @@ textarea {
   min-height:54px
 }
 
+.table-final-actions {
+  display:grid;
+  grid-template-columns:minmax(160px,.35fr) 1fr;
+  gap:10px;
+  align-items:end
+}
+
+.table-final-actions .primary,
+.table-final-actions .soft {
+  width:100%;
+  margin-top:0;
+  min-height:54px
+}
+
+.table-map-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(92px,1fr));
+  gap:10px
+}
+
+.table-map-card {
+  min-height:92px;
+  display:grid;
+  align-content:center;
+  gap:4px;
+  text-align:left;
+  padding:12px;
+  border-radius:18px;
+  color:var(--txt);
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.09)
+}
+
+.table-map-card b {
+  color:var(--gold);
+  font-size:24px
+}
+
+.table-map-card span {
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase
+}
+
+.table-map-card small {
+  color:var(--muted);
+  font-size:11px
+}
+
+.table-map-card.status-free {
+  opacity:.72
+}
+
+.table-map-card.status-kitchen {
+  border-color:rgba(102,183,255,.35);
+  background:rgba(102,183,255,.08)
+}
+
+.table-map-card.status-ready {
+  border-color:rgba(50,199,106,.38);
+  background:rgba(50,199,106,.09)
+}
+
+.table-map-card.status-open,
+.table-map-card.active {
+  border-color:rgba(246,196,0,.45);
+  background:rgba(246,196,0,.12)
+}
+
 .payment-box {
   margin-top:14px;
   padding:14px;
@@ -846,6 +920,52 @@ textarea {
 
 .table-transfer-row button {
   min-height:48px
+}
+
+.cash-session-panel {
+  margin-bottom:18px
+}
+
+.cash-session-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:12px;
+  align-items:end
+}
+
+.cash-session-grid label {
+  margin-top:0
+}
+
+.cash-session-grid .primary,
+.cash-session-grid .soft,
+.cash-session-grid .danger {
+  margin-top:0;
+  min-height:48px
+}
+
+.item-extra-grid {
+  display:grid;
+  grid-template-columns:1fr minmax(140px,.35fr);
+  gap:10px;
+  padding:0 0 12px;
+  border-bottom:1px solid #292929
+}
+
+.item-extra-grid label {
+  margin-top:0
+}
+
+.item-detail {
+  display:block;
+  margin-top:4px
+}
+
+.compact-action {
+  width:auto;
+  margin-top:0;
+  padding:9px 12px;
+  box-shadow:none
 }
 
 
@@ -1628,6 +1748,8 @@ textarea {
 
   .payment-grid,
   .table-transfer-row,
+  .table-final-actions,
+  .item-extra-grid,
   .report-actions {
     grid-template-columns: 1fr;
     flex-direction: column;

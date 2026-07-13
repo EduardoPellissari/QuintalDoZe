@@ -16,16 +16,13 @@ let cart = [];
 let selectedCategory = txt('garcom.todos', 'Todos');
 let openOrders = [];
 
-// Altere este numero se o restaurante tiver mais ou menos mesas fixas.
-const TOTAL_TABLES = 30;
-
 async function init() {
   const [orderProducts, orders] = await Promise.all([
     API.get('/api/products?usage=orders'),
     API.get('/api/orders'),
   ]);
 
-  products = orderProducts.filter((product) => product.active !== false);
+  products = orderProducts.filter((product) => product.active !== false && product.soldOut !== true);
   openOrders = orders.filter(isOpenOrder);
   render();
 }
@@ -54,7 +51,7 @@ function add(id) {
   const line = cart.find((item) => productId(item.id) === productId(id));
 
   if (line) line.qty++;
-  else cart.push({ ...product, qty: 1 });
+  else cart.push({ ...product, qty: 1, extraPrice: 0, note: '' });
 
   renderCart();
 }
@@ -82,7 +79,7 @@ function isOpenOrder(order) {
 }
 
 function configuredTables() {
-  return Array.from({ length: TOTAL_TABLES }, (_, index) => String(index + 1));
+  return configuredRestaurantTables();
 }
 
 function normalizedTable(value) {
@@ -154,6 +151,16 @@ function selectTableSuggestion(table) {
   if (!input) return;
   input.value = table;
   input.focus();
+}
+
+function updateCartItem(id, field, value) {
+  const line = cart.find((item) => productId(item.id) === productId(id));
+  if (!line) return;
+
+  if (field === 'extraPrice') line.extraPrice = Math.max(Number(value || 0), 0);
+  else line.note = value;
+
+  renderCart();
 }
 
 function render() {
@@ -255,7 +262,7 @@ function renderCart() {
   const element = document.getElementById('cart');
   if (!element) return;
 
-  const total = cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
+  const total = cart.reduce((sum, item) => sum + itemLineTotal(item), 0);
 
   element.innerHTML = `
     <h3>${txt('garcom.itens', 'Itens')}</h3>
@@ -264,7 +271,8 @@ function renderCart() {
       <div class="cart-line">
         <div>
           <b>${item.name}</b>
-          <small class="muted">${money(item.price)} ${txt('garcom.cada', 'cada')}</small>
+          <small class="muted">${money(itemUnitPrice(item))} ${txt('garcom.cada', 'cada')}</small>
+          ${itemDetailsHtml(item)}
         </div>
 
         <div class="qty">
@@ -272,6 +280,14 @@ function renderCart() {
           <b>${item.qty}</b>
           <button type="button" onclick="add('${productId(item.id)}')">+</button>
         </div>
+      </div>
+      <div class="item-extra-grid">
+        <label>Detalhes/adicionais do item
+          <input value="${htmlAttr(item.note || '')}" placeholder="Ex: sem cebola, ponto da carne, adicional bacon" oninput="updateCartItem('${productId(item.id)}', 'note', this.value)">
+        </label>
+        <label>Acréscimo por unidade
+          <input type="number" min="0" step="0.01" value="${Number(item.extraPrice || 0) || ''}" placeholder="Ex: 3.00" oninput="updateCartItem('${productId(item.id)}', 'extraPrice', this.value)">
+        </label>
       </div>
     `).join('') : `<p class="muted">${txt('garcom.nenhumItem', 'Nenhum item adicionado.')}</p>`}
 
@@ -296,6 +312,9 @@ async function send(event) {
         id: item.id,
         name: item.name,
         price: item.price,
+        basePrice: item.price,
+        extraPrice: Number(item.extraPrice || 0),
+        note: item.note || '',
         qty: item.qty,
       })),
     });
@@ -312,6 +331,7 @@ async function send(event) {
 }
 
 window.selectTableSuggestion = selectTableSuggestion;
+window.updateCartItem = updateCartItem;
 
 init();
 setInterval(syncTableSuggestions, 15000);

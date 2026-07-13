@@ -349,7 +349,10 @@ function card(order) {
 
       <ul class="kitchen-items">
         ${order.items.map((item) => `
-          <li><strong>${item.qty}x</strong><span>${item.name}</span></li>
+          <li>
+            <strong>${item.qty}x</strong>
+            <span>${htmlAttr(item.name)}${itemDetailsHtml(item)}</span>
+          </li>
         `).join('')}
       </ul>
 

@@ -39,12 +39,14 @@ function defaultDb() {
       { id: 4, name: 'Caixa', email: 'caixa@quintaldoze', password: 'quintaldoze123', role: 'caixa' }
     ],
     products: [
-      { id: 101, name: 'Prato Executivo', category: 'Pratos', price: 28.90, description: 'Arroz, feijão, salada e proteína do dia', active: true, usage: 'orders' },
-      { id: 102, name: 'Porção de Batata', category: 'Porções', price: 24.00, description: 'Batata frita crocante', active: true, usage: 'orders' },
-      { id: 103, name: 'Refrigerante Lata', category: 'Bebidas', price: 6.50, description: '350 ml', active: true, usage: 'orders' }
+      { id: 101, name: 'Prato Executivo', category: 'Pratos', price: 28.90, description: 'Arroz, feijão, salada e proteína do dia', active: true, soldOut: false, usage: 'orders' },
+      { id: 102, name: 'Porção de Batata', category: 'Porções', price: 24.00, description: 'Batata frita crocante', active: true, soldOut: false, usage: 'orders' },
+      { id: 103, name: 'Refrigerante Lata', category: 'Bebidas', price: 6.50, description: '350 ml', active: true, soldOut: false, usage: 'orders' }
     ],
     quotes: [],
-    orders: []
+    orders: [],
+    cashSessions: [],
+    activityLog: []
   };
 }
 
@@ -56,6 +58,8 @@ function normalizeProduct(product) {
   const safeProduct = product && typeof product === 'object' ? product : {};
   return {
     ...safeProduct,
+    active: safeProduct.active !== false,
+    soldOut: safeProduct.soldOut === true,
     usage: productUsage(safeProduct.usage)
   };
 }
@@ -70,20 +74,61 @@ function paymentMethod(value) {
   return allowed.includes(String(value)) ? String(value) : 'pix';
 }
 
+function itemBasePrice(item) {
+  return Number(item?.basePrice ?? item?.price ?? 0);
+}
+
+function itemExtraPrice(item) {
+  return Math.max(Number(item?.extraPrice || 0), 0);
+}
+
+function itemUnitPrice(item) {
+  return itemBasePrice(item) + itemExtraPrice(item);
+}
+
+function itemLineTotal(item) {
+  return itemUnitPrice(item) * Number(item?.qty || 1);
+}
+
+function normalizeOrderItem(item) {
+  const safeItem = item && typeof item === 'object' ? item : {};
+  const qty = Math.max(Number(safeItem.qty || 1), 0);
+  const basePrice = Math.max(itemBasePrice(safeItem), 0);
+  const extraPrice = itemExtraPrice(safeItem);
+
+  return {
+    id: safeItem.id ?? null,
+    name: String(safeItem.name || safeItem.description || '').trim(),
+    qty,
+    price: basePrice,
+    basePrice,
+    extraPrice,
+    note: String(safeItem.note || safeItem.itemNote || '').trim()
+  };
+}
+
+function sanitizeOrderItems(items) {
+  return (Array.isArray(items) ? items : [])
+    .map(normalizeOrderItem)
+    .filter((item) => item.name && item.qty > 0);
+}
+
 function orderSubtotal(order) {
   if (Number(order?.subtotal || 0) > 0) return Number(order.subtotal);
-  return (order?.items || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1), 0);
+  return (order?.items || []).reduce((sum, item) => sum + itemLineTotal(item), 0);
 }
 
 function normalizeOrder(order) {
   const safeOrder = order && typeof order === 'object' ? order : {};
-  const subtotal = orderSubtotal(safeOrder);
+  const items = sanitizeOrderItems(safeOrder.items);
+  const subtotal = orderSubtotal({ ...safeOrder, items });
   const serviceFee = Math.max(Number(safeOrder.serviceFee || 0), 0);
   const discount = Math.max(Number(safeOrder.discount || 0), 0);
   const total = Math.max(Number(safeOrder.total ?? subtotal + serviceFee - discount), 0);
 
   return {
     ...safeOrder,
+    items,
     subtotal,
     serviceFee,
     discount,
@@ -144,6 +189,8 @@ function normalizeDb(dbCandidate) {
   if (!Array.isArray(db.quotes)) db.quotes = [];
   if (!Array.isArray(db.orders)) db.orders = [];
   db.orders = db.orders.map(normalizeOrder);
+  if (!Array.isArray(db.cashSessions)) db.cashSessions = [];
+  if (!Array.isArray(db.activityLog)) db.activityLog = [];
 
   return db;
 }
@@ -236,6 +283,33 @@ async function writeDb(db) {
 
 function nextId(list) {
   return list.length ? Math.max(...list.map((item) => Number(item.id) || 0)) + 1 : Date.now();
+}
+
+function logAction(db, type, message, data = {}) {
+  const entry = {
+    id: nextId(db.activityLog || []),
+    type,
+    message,
+    data,
+    createdAt: new Date().toISOString()
+  };
+
+  db.activityLog = [entry, ...(db.activityLog || [])].slice(0, 500);
+  return entry;
+}
+
+function localDate(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
+}
+
+function cashSalesForDate(db, dateValue) {
+  return (db.orders || [])
+    .filter((order) => order.paid && localDate(order.paidAt || order.createdAt) === dateValue)
+    .filter((order) => order.paymentMethod === 'dinheiro')
+    .reduce((sum, order) => sum + Number(order.total || 0), 0);
 }
 
 function publicUser(user) {
@@ -345,10 +419,12 @@ app.post('/api/products', asyncHandler(async (req, res) => {
     price: Number(req.body.price),
     description: String(req.body.description || '').trim(),
     active: req.body.active !== false,
+    soldOut: req.body.soldOut === true,
     usage: productUsage(req.body.usage)
   };
 
   db.products.push(product);
+  logAction(db, 'product', `Produto cadastrado: ${product.name}`, { productId: product.id });
   await writeDb(db);
   res.json(product);
 }));
@@ -363,17 +439,34 @@ app.put('/api/products/:id', asyncHandler(async (req, res) => {
   product.price = Number(req.body.price || product.price);
   product.description = String(req.body.description || '').trim();
   product.active = req.body.active !== false;
+  product.soldOut = req.body.soldOut === true;
   if (req.body.usage) product.usage = productUsage(req.body.usage);
 
+  logAction(db, 'product', `Produto atualizado: ${product.name}`, { productId: product.id, soldOut: product.soldOut });
   await writeDb(db);
   res.json(product);
 }));
 
 app.delete('/api/products/:id', asyncHandler(async (req, res) => {
   const db = await readDb();
+  const product = db.products.find((p) => String(p.id) === String(req.params.id));
   db.products = db.products.filter((p) => String(p.id) !== String(req.params.id));
+  if (product) logAction(db, 'product', `Produto excluído: ${product.name}`, { productId: product.id });
   await writeDb(db);
   res.json({ ok: true });
+}));
+
+app.put('/api/products/:id/sold-out', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const product = db.products.find((p) => String(p.id) === String(req.params.id));
+  if (!product) return res.status(404).json({ error: 'Produto não encontrado.' });
+
+  product.soldOut = req.body.soldOut === true;
+  product.active = product.active !== false;
+  logAction(db, 'product', `${product.name} marcado como ${product.soldOut ? 'esgotado' : 'disponível'}`, { productId: product.id, soldOut: product.soldOut });
+
+  await writeDb(db);
+  res.json(normalizeProduct(product));
 }));
 
 function sanitizeQuoteItems(items) {
@@ -435,6 +528,7 @@ app.post('/api/quotes', asyncHandler(async (req, res) => {
   const quote = { ...result.quote, id: nextId(db.quotes) };
   db.quotes.push(quote);
 
+  logAction(db, 'quote', `Orçamento criado: ${quote.clientName}`, { quoteId: quote.id, total: quote.total });
   await writeDb(db);
   res.json(quote);
 }));
@@ -448,15 +542,92 @@ app.put('/api/quotes/:id', asyncHandler(async (req, res) => {
   if (result.error) return res.status(400).json({ error: result.error });
 
   db.quotes[index] = { ...result.quote, id: db.quotes[index].id };
+  logAction(db, 'quote', `Orçamento atualizado: ${db.quotes[index].clientName}`, { quoteId: db.quotes[index].id, total: db.quotes[index].total });
   await writeDb(db);
   res.json(db.quotes[index]);
 }));
 
 app.delete('/api/quotes/:id', asyncHandler(async (req, res) => {
   const db = await readDb();
+  const quote = db.quotes.find((item) => String(item.id) === String(req.params.id));
   db.quotes = db.quotes.filter((quote) => String(quote.id) !== String(req.params.id));
+  if (quote) logAction(db, 'quote', `Orçamento excluído: ${quote.clientName}`, { quoteId: quote.id });
   await writeDb(db);
   res.json({ ok: true });
+}));
+
+app.post('/api/quotes/:id/approve', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const quote = db.quotes.find((item) => String(item.id) === String(req.params.id));
+  if (!quote) return res.status(404).json({ error: 'Orçamento não encontrado.' });
+
+  if (quote.convertedOrderId) {
+    const existingOrder = db.orders.find((order) => String(order.id) === String(quote.convertedOrderId));
+    return res.json({ ok: true, quote, order: existingOrder || null, alreadyConverted: true });
+  }
+
+  const now = new Date().toISOString();
+  const table = String(req.body.table || `Evento ${quote.id}`).trim();
+  const waiter = String(req.body.waiter || 'Orçamento').trim();
+  const items = sanitizeOrderItems((quote.items || []).map((item) => ({
+    id: item.productId || null,
+    name: item.description,
+    qty: item.qty,
+    price: item.unitPrice,
+    basePrice: item.unitPrice,
+    extraPrice: 0,
+    note: 'Item vindo do orçamento'
+  })));
+  const total = items.reduce((sum, item) => sum + itemLineTotal(item), 0);
+
+  if (!items.length) return res.status(400).json({ error: 'O orçamento precisa ter itens para virar pedido.' });
+
+  const notes = [
+    `Evento: ${quote.eventType}`,
+    quote.clientName ? `Cliente: ${quote.clientName}` : '',
+    quote.phone ? `Contato: ${quote.phone}` : '',
+    quote.eventDate ? `Data: ${quote.eventDate}` : '',
+    quote.eventTime ? `Horário: ${quote.eventTime}` : '',
+    quote.guests ? `Pessoas: ${quote.guests}` : '',
+    quote.location ? `Local: ${quote.location}` : '',
+    quote.notes ? `Obs.: ${quote.notes}` : '',
+  ].filter(Boolean).join(' | ');
+
+  const order = {
+    id: nextId(db.orders),
+    table,
+    waiter,
+    items,
+    notes,
+    status: 'pendente',
+    paid: false,
+    subtotal: total,
+    serviceFee: 0,
+    discount: 0,
+    total,
+    paymentMethod: '',
+    paymentNote: '',
+    paymentSplitCount: 0,
+    cancelReason: '',
+    source: 'quote',
+    quoteId: quote.id,
+    createdAt: now,
+    startedAt: null,
+    readyAt: null,
+    deliveredAt: null,
+    paidAt: null,
+    canceledAt: null,
+    tableMoves: []
+  };
+
+  db.orders.push(order);
+  quote.status = 'aprovado';
+  quote.convertedOrderId = order.id;
+  quote.updatedAt = now;
+
+  logAction(db, 'quote', `Orçamento aprovado e enviado como pedido: ${quote.clientName}`, { quoteId: quote.id, orderId: order.id });
+  await writeDb(db);
+  res.json({ ok: true, quote, order });
 }));
 
 app.get('/api/orders', asyncHandler(async (req, res) => {
@@ -468,11 +639,11 @@ app.post('/api/orders', asyncHandler(async (req, res) => {
   const db = await readDb();
   const table = String(req.body.table || '').trim();
   const waiter = String(req.body.waiter || '').trim();
-  const items = Array.isArray(req.body.items) ? req.body.items : [];
+  const items = sanitizeOrderItems(req.body.items);
 
   if (!table || !waiter || !items.length) return res.status(400).json({ error: 'Informe mesa/comanda, garçom e itens.' });
 
-  const total = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.qty || 1)), 0);
+  const total = items.reduce((sum, item) => sum + itemLineTotal(item), 0);
   const order = {
     id: nextId(db.orders),
     table,
@@ -487,16 +658,19 @@ app.post('/api/orders', asyncHandler(async (req, res) => {
     total,
     paymentMethod: '',
     paymentNote: '',
+    paymentSplitCount: 0,
     cancelReason: '',
     createdAt: new Date().toISOString(),
     startedAt: null,
     readyAt: null,
     deliveredAt: null,
     paidAt: null,
-    canceledAt: null
+    canceledAt: null,
+    tableMoves: []
   };
 
   db.orders.push(order);
+  logAction(db, 'order', `Pedido criado na mesa/comanda ${table}`, { orderId: order.id, table, waiter, total });
   await writeDb(db);
   res.json(order);
 }));
@@ -520,6 +694,7 @@ app.put('/api/orders/:id/status', asyncHandler(async (req, res) => {
     order.canceledAt = now;
   }
 
+  logAction(db, 'order', `Pedido #${order.id} alterado para ${nextStatus}`, { orderId: order.id, previousStatus, nextStatus });
   await writeDb(db);
   res.json(order);
 }));
@@ -531,6 +706,7 @@ app.put('/api/orders/:id/pay', asyncHandler(async (req, res) => {
 
   applyPaymentToOrder(order, req.body, new Date().toISOString());
 
+  logAction(db, 'cash', `Pedido #${order.id} pago`, { orderId: order.id, table: order.table, total: order.total, paymentMethod: order.paymentMethod });
   await writeDb(db);
   res.json(order);
 }));
@@ -560,6 +736,12 @@ app.post('/api/tables/pay', asyncHandler(async (req, res) => {
     }, paidAt);
   });
 
+  logAction(db, 'cash', `Mesa/comanda ${table} fechada`, {
+    table,
+    orders: tableOrders.map((order) => order.id),
+    total: tableOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+    paymentMethod: paymentMethod(req.body.paymentMethod)
+  });
   await writeDb(db);
   res.json({
     ok: true,
@@ -591,8 +773,110 @@ app.post('/api/tables/transfer', asyncHandler(async (req, res) => {
     order.table = toTable;
   });
 
+  logAction(db, 'table', `Mesa/comanda ${fromTable} movida/juntada para ${toTable}`, { fromTable, toTable, moved: tableOrders.length });
   await writeDb(db);
   res.json({ ok: true, fromTable, toTable, moved: tableOrders.length, orders: tableOrders });
+}));
+
+app.get('/api/cash-sessions/current', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const current = (db.cashSessions || []).find((session) => session.status === 'open') || null;
+  res.json({
+    current,
+    sessions: [...(db.cashSessions || [])].sort((a, b) => new Date(b.openedAt) - new Date(a.openedAt)).slice(0, 20)
+  });
+}));
+
+app.get('/api/cash-sessions', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const date = String(req.query.date || '').trim();
+  const sessions = [...(db.cashSessions || [])]
+    .filter((session) => !date || session.date === date)
+    .sort((a, b) => new Date(b.openedAt) - new Date(a.openedAt));
+  res.json(sessions);
+}));
+
+app.post('/api/cash-sessions/open', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const current = (db.cashSessions || []).find((session) => session.status === 'open');
+  if (current) return res.status(409).json({ error: 'Já existe um caixa aberto.' });
+
+  const openedAt = new Date().toISOString();
+  const session = {
+    id: nextId(db.cashSessions || []),
+    date: localDate(openedAt),
+    status: 'open',
+    openingAmount: Math.max(Number(req.body.openingAmount || 0), 0),
+    note: String(req.body.note || '').trim(),
+    entries: [],
+    openedAt,
+    closedAt: null,
+    countedCash: null,
+    expectedCash: null,
+    difference: null,
+    closeNote: ''
+  };
+
+  db.cashSessions.push(session);
+  logAction(db, 'cash-session', `Caixa aberto com ${session.openingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, { sessionId: session.id });
+  await writeDb(db);
+  res.json(session);
+}));
+
+app.post('/api/cash-sessions/entry', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const session = (db.cashSessions || []).find((item) => item.status === 'open');
+  if (!session) return res.status(404).json({ error: 'Abra o caixa antes de registrar movimentações.' });
+
+  const type = String(req.body.type) === 'sangria' ? 'sangria' : 'suprimento';
+  const amount = Math.max(Number(req.body.amount || 0), 0);
+  if (!amount) return res.status(400).json({ error: 'Informe um valor maior que zero.' });
+
+  const entry = {
+    id: nextId(session.entries || []),
+    type,
+    amount,
+    note: String(req.body.note || '').trim(),
+    createdAt: new Date().toISOString()
+  };
+
+  session.entries = [...(session.entries || []), entry];
+  logAction(db, 'cash-session', `${type === 'sangria' ? 'Sangria' : 'Suprimento'} registrado no caixa`, { sessionId: session.id, amount });
+  await writeDb(db);
+  res.json(session);
+}));
+
+app.post('/api/cash-sessions/close', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const session = (db.cashSessions || []).find((item) => item.status === 'open');
+  if (!session) return res.status(404).json({ error: 'Nenhum caixa aberto para fechar.' });
+
+  const entries = session.entries || [];
+  const supplies = entries.filter((entry) => entry.type === 'suprimento').reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const withdrawals = entries.filter((entry) => entry.type === 'sangria').reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const cashSales = cashSalesForDate(db, session.date);
+  const expectedCash = Number((Number(session.openingAmount || 0) + supplies - withdrawals + cashSales).toFixed(2));
+  const countedCash = Math.max(Number(req.body.countedCash || 0), 0);
+
+  session.status = 'closed';
+  session.closedAt = new Date().toISOString();
+  session.countedCash = countedCash;
+  session.expectedCash = expectedCash;
+  session.difference = Number((countedCash - expectedCash).toFixed(2));
+  session.closeNote = String(req.body.note || '').trim();
+
+  logAction(db, 'cash-session', `Caixa fechado com diferença de ${session.difference.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, { sessionId: session.id, expectedCash, countedCash });
+  await writeDb(db);
+  res.json(session);
+}));
+
+app.get('/api/activity-log', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const date = String(req.query.date || '').trim();
+  const rows = (db.activityLog || [])
+    .filter((entry) => !date || localDate(entry.createdAt) === date)
+    .slice(0, 100);
+  res.json(rows);
 }));
 
 app.post('/api/orders/close-day', asyncHandler(async (req, res) => {
@@ -616,13 +900,16 @@ app.post('/api/orders/close-day', asyncHandler(async (req, res) => {
     }
   });
 
+  logAction(db, 'kitchen', `Dia da cozinha encerrado`, { closed });
   await writeDb(db);
   res.json({ ok: true, closed });
 }));
 
 app.delete('/api/orders/:id', asyncHandler(async (req, res) => {
   const db = await readDb();
+  const order = db.orders.find((o) => String(o.id) === String(req.params.id));
   db.orders = db.orders.filter((o) => String(o.id) !== String(req.params.id));
+  if (order) logAction(db, 'order', `Pedido #${order.id} excluído`, { orderId: order.id, table: order.table });
   await writeDb(db);
   res.json({ ok: true });
 }));
