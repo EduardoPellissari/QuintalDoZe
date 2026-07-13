@@ -575,7 +575,7 @@ window.printEventReceipt = async (orderId, scope) => {
 
   const bodyHtml = `
     ${meta.length ? `
-      <div class="grid g2" style="margin-bottom:18px">
+      <div class="grid g2 pdf-print-info-grid">
         ${meta.slice(0, 8).map((item) => `<div class="metric"><span>Informação</span><b>${htmlAttr(item)}</b></div>`).join('')}
       </div>
     ` : ''}
@@ -1010,6 +1010,11 @@ function openReportPrintDocument({
 
         .pdf-print-shell .grid.g4 {
           grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .pdf-print-info-grid {
+          margin-top: 18px;
+          margin-bottom: 18px;
         }
 
         .pdf-print-shell .metric {
