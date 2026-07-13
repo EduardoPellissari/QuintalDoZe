@@ -58,6 +58,17 @@ button {
   display:none!important
 }
 
+.autofill-decoy {
+  position:absolute;
+  left:-10000px;
+  top:auto;
+  width:1px;
+  height:1px;
+  overflow:hidden;
+  opacity:0;
+  pointer-events:none
+}
+
 .muted {
   color:var(--muted)
 }
@@ -213,6 +224,33 @@ button {
 .login-modern-form input:focus {
   border-color:var(--gold);
   box-shadow:0 0 0 3px rgba(246,196,0,.14)
+}
+
+.login-save-option {
+  display:flex!important;
+  align-items:center;
+  gap:10px;
+  margin-top:14px!important;
+  padding:10px 12px;
+  border-radius:14px;
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.08);
+  color:var(--txt)!important;
+  cursor:pointer
+}
+
+.login-save-option input {
+  width:18px!important;
+  height:18px!important;
+  margin:0!important;
+  padding:0!important;
+  accent-color:var(--gold)
+}
+
+.login-save-option span {
+  color:var(--txt);
+  font-size:13px;
+  font-weight:850
 }
 
 .login-modern-button {

@@ -81,18 +81,23 @@ async function renderUsers() {
           <span class="badge ok">${txt('admin.usuarios.badge', 'Área administrativa')}</span>
         </div>
 
-        <form id="userForm">
+        <form id="userForm" autocomplete="off" data-lpignore="true" data-1p-ignore="true">
+          <div class="autofill-decoy" aria-hidden="true">
+            <input type="text" name="username" autocomplete="username" tabindex="-1">
+            <input type="password" name="password" autocomplete="current-password" tabindex="-1">
+          </div>
+
           <div class="admin-form-grid">
             <label>${txt('admin.usuarios.nome', 'Nome')}
-              <input id="uName" placeholder="${txt('admin.usuarios.placeholderNome', 'Ex: João')}" value="${editingUser?.name || ''}">
+              <input id="uName" name="newUserName" autocomplete="off" data-lpignore="true" data-1p-ignore="true" placeholder="${txt('admin.usuarios.placeholderNome', 'Ex: João')}" value="${editingUser?.name || ''}">
             </label>
 
             <label>${txt('admin.usuarios.email', 'E-mail')}
-              <input id="uEmail" type="email" placeholder="${txt('admin.usuarios.placeholderEmail', 'email@quintaldoze.local')}" value="${editingUser?.email || ''}">
+              <input id="uEmail" name="newUserEmail" type="email" autocomplete="off" data-lpignore="true" data-1p-ignore="true" placeholder="${txt('admin.usuarios.placeholderEmail', 'email@quintaldoze.local')}" value="${editingUser?.email || ''}">
             </label>
 
             <label>${txt('admin.usuarios.senha', 'Senha')}
-              <input id="uPass" type="password" placeholder="${editingUser ? txt('admin.usuarios.placeholderSenhaEditar', 'Deixe em branco para manter') : txt('admin.usuarios.placeholderSenhaNova', 'Digite uma senha')}">
+              <input id="uPass" name="newUserPassword" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" placeholder="${editingUser ? txt('admin.usuarios.placeholderSenhaEditar', 'Deixe em branco para manter') : txt('admin.usuarios.placeholderSenhaNova', 'Digite uma senha')}">
             </label>
 
             <label>${txt('admin.usuarios.perfil', 'Perfil')}
@@ -152,6 +157,7 @@ async function renderUsers() {
   `;
 
   if (editingUser) document.getElementById('uRole').value = editingUser.role;
+  preventNewUserAutofill();
 
   const cancel = document.getElementById('cancelUser');
   if (cancel) {
@@ -162,6 +168,30 @@ async function renderUsers() {
   }
 
   document.getElementById('userForm').onsubmit = saveUser;
+}
+
+function preventNewUserAutofill() {
+  if (editingUser) return;
+
+  let userInteracted = false;
+  const fields = ['uName', 'uEmail', 'uPass']
+    .map((id) => document.getElementById(id))
+    .filter(Boolean);
+
+  fields.forEach((field) => {
+    field.addEventListener('focus', () => { userInteracted = true; }, { once: true });
+    field.addEventListener('keydown', () => { userInteracted = true; }, { once: true });
+    field.addEventListener('pointerdown', () => { userInteracted = true; }, { once: true });
+  });
+
+  const clearAutofill = () => {
+    if (userInteracted || editingUser) return;
+    fields.forEach((field) => { field.value = ''; });
+  };
+
+  requestAnimationFrame(clearAutofill);
+  setTimeout(clearAutofill, 120);
+  setTimeout(clearAutofill, 500);
 }
 
 async function saveUser(event) {

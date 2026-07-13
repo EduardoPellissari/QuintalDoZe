@@ -19,9 +19,19 @@ setText('loginAccessCaixa', txt('login.acessoCaixa', 'Caixa: caixa@quintaldoze.l
 
 const lastLoginEmail = localStorage.getItem('qz_last_login_email') || '';
 const lastLoginRole = localStorage.getItem('qz_last_login_role') || '';
+const savedLoginEnabled = localStorage.getItem('qz_saved_login_enabled') === 'true';
+const savedLoginEmail = localStorage.getItem('qz_saved_login_email') || '';
+const savedLoginPassword = localStorage.getItem('qz_saved_login_password') || '';
 const loginEmailInput = document.getElementById('loginEmail');
+const loginPasswordInput = document.getElementById('loginPassword');
+const rememberLoginInput = document.getElementById('rememberLogin');
 
-if (lastLoginEmail && loginEmailInput) {
+if (savedLoginEnabled && savedLoginEmail && loginEmailInput) {
+  loginEmailInput.value = savedLoginEmail;
+  if (loginPasswordInput) loginPasswordInput.value = savedLoginPassword;
+  if (rememberLoginInput) rememberLoginInput.checked = true;
+  setText('loginSubtitle', `Acesso salvo: ${savedLoginEmail}${lastLoginRole ? ` (${roleLabel(lastLoginRole)})` : ''}`);
+} else if (lastLoginEmail && loginEmailInput) {
   loginEmailInput.value = lastLoginEmail;
   setText('loginSubtitle', `Último acesso: ${lastLoginEmail}${lastLoginRole ? ` (${roleLabel(lastLoginRole)})` : ''}`);
 }
@@ -39,6 +49,17 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
     const user = await API.post('/api/login', { email, password });
     localStorage.setItem('qz_last_login_email', email);
     localStorage.setItem('qz_last_login_role', user.role || '');
+
+    if (rememberLoginInput?.checked) {
+      localStorage.setItem('qz_saved_login_enabled', 'true');
+      localStorage.setItem('qz_saved_login_email', email);
+      localStorage.setItem('qz_saved_login_password', password);
+    } else {
+      localStorage.removeItem('qz_saved_login_enabled');
+      localStorage.removeItem('qz_saved_login_email');
+      localStorage.removeItem('qz_saved_login_password');
+    }
+
     setUser(user);
 
     const routes = {
