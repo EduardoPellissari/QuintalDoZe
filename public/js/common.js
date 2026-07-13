@@ -127,11 +127,20 @@ function itemLineTotal(item) {
 
 function itemDetailsHtml(item) {
   const details = [
-    item?.note ? `Obs.: ${htmlAttr(item.note)}` : '',
-    itemExtraPrice(item) ? `Acréscimo: ${money(itemExtraPrice(item))} por un.` : '',
+    item?.note ? { type: 'note', label: 'Personalização', value: htmlAttr(item.note) } : null,
+    itemExtraPrice(item) ? { type: 'extra', label: 'Acréscimo', value: `${money(itemExtraPrice(item))} por un.` } : null,
   ].filter(Boolean);
 
-  return details.length ? `<small class="muted item-detail">${details.join(' • ')}</small>` : '';
+  return details.length ? `
+    <span class="item-detail-list">
+      ${details.map((detail) => `
+        <span class="item-detail-chip ${detail.type}">
+          <strong>${detail.label}</strong>
+          <span>${detail.value}</span>
+        </span>
+      `).join('')}
+    </span>
+  ` : '';
 }
 
 function orderSubtotal(order) {
