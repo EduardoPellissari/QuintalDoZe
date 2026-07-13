@@ -138,9 +138,12 @@ function updatePaymentPreview(id, scope) {
   const subtotal = Number(box.dataset.subtotal || 0);
   const serviceFee = Number(document.getElementById(paymentFieldId(id, scope, 'service'))?.value || 0);
   const discount = Number(document.getElementById(paymentFieldId(id, scope, 'discount'))?.value || 0);
+  const splitCount = Math.max(Number(document.getElementById(paymentFieldId(id, scope, 'split'))?.value || 1), 1);
   const total = Math.max(subtotal + serviceFee - discount, 0);
   const totalElement = document.getElementById(paymentFieldId(id, scope, 'total'));
+  const splitElement = document.getElementById(paymentFieldId(id, scope, 'splitTotal'));
   if (totalElement) totalElement.textContent = money(total);
+  if (splitElement) splitElement.textContent = `${splitCount}x de ${money(total / splitCount)}`;
 }
 
 function bindPaymentControls(scope) {
@@ -156,6 +159,7 @@ function paymentBodyFromControls(id, scope) {
     serviceFee: Number(document.getElementById(paymentFieldId(id, scope, 'service'))?.value || 0),
     discount: Number(document.getElementById(paymentFieldId(id, scope, 'discount'))?.value || 0),
     paymentNote: document.getElementById(paymentFieldId(id, scope, 'note'))?.value || '',
+    paymentSplitCount: Math.max(Number(document.getElementById(paymentFieldId(id, scope, 'split'))?.value || 1), 1),
   };
 }
 
@@ -208,10 +212,17 @@ function tablePaymentControls(table, subtotal, scope) {
         <label>Observação
           <input id="${paymentFieldId(key, scope, 'note')}" placeholder="Opcional">
         </label>
+
+        <label>Dividir por pessoas
+          <input id="${paymentFieldId(key, scope, 'split')}" class="payment-control" data-order="${key}" data-scope="${scope}" type="number" min="1" step="1" value="1">
+        </label>
       </div>
 
       <div class="payment-total">
-        <span>Total a receber</span>
+        <div>
+          <span>Total a receber</span>
+          <small id="${paymentFieldId(key, scope, 'splitTotal')}">1x de ${money(subtotal)}</small>
+        </div>
         <b id="${paymentFieldId(key, scope, 'total')}">${money(subtotal)}</b>
       </div>
     </div>
@@ -222,6 +233,17 @@ function tablePaymentBodyFromControls(table, scope) {
   return {
     table: tableKey(table),
     ...paymentBodyFromControls(encodedTable(table), scope),
+  };
+}
+
+function tableTransferFieldId(table, scope) {
+  return `${scope}-transfer-${encodedTable(table)}`;
+}
+
+function tableTransferBodyFromControls(table, scope) {
+  return {
+    fromTable: tableKey(table),
+    toTable: document.getElementById(tableTransferFieldId(table, scope))?.value || '',
   };
 }
 
@@ -245,7 +267,27 @@ function tableSummaryCards(openOrders, selectedTable, selectFunctionName) {
   `;
 }
 
-function tableCheckoutPanel(openOrders, selectedTable, scope, closeFunctionName, cancelFunctionName) {
+function tableTransferControls(table, scope, transferFunctionName) {
+  if (!transferFunctionName) return '';
+
+  return `
+    <div class="table-transfer-box">
+      <div>
+        <h4>Mover ou juntar mesa</h4>
+        <p>Use para corrigir mesa errada ou juntar todos os pedidos em outra mesa/comanda.</p>
+      </div>
+
+      <div class="table-transfer-row">
+        <label>Destino
+          <input id="${tableTransferFieldId(table, scope)}" placeholder="Ex: 8 ou Balcao 2">
+        </label>
+        <button class="soft" type="button" onclick="${transferFunctionName}('${encodedTable(table)}')">Mover/Juntar</button>
+      </div>
+    </div>
+  `;
+}
+
+function tableCheckoutPanel(openOrders, selectedTable, scope, closeFunctionName, cancelFunctionName, transferFunctionName = '') {
   const groups = groupOrdersByTable(openOrders);
   const group = groups.find((item) => item.table === tableKey(selectedTable)) || groups[0];
 
@@ -292,6 +334,7 @@ function tableCheckoutPanel(openOrders, selectedTable, scope, closeFunctionName,
       </div>
 
       ${tablePaymentControls(group.table, group.subtotal, scope)}
+      ${tableTransferControls(group.table, scope, transferFunctionName)}
 
       <button class="primary table-close-button" type="button" onclick="${closeFunctionName}('${encodedTable(group.table)}')">Fechar mesa/comanda</button>
     </div>

@@ -67,7 +67,7 @@ async function cash() {
         <span class="badge ok">Caixa</span>
       </div>
 
-      ${tableCheckoutPanel(openOrders, selectedCashTable, 'cash', 'closeCashTable', 'cancelOrder')}
+      ${tableCheckoutPanel(openOrders, selectedCashTable, 'cash', 'closeCashTable', 'cancelOrder', 'transferCashTable')}
     </section>
   `;
 
@@ -84,6 +84,17 @@ window.closeCashTable = async (encoded) => {
   await API.post('/api/tables/pay', tablePaymentBodyFromControls(table, 'cash'));
   toast('Mesa/comanda fechada.');
   selectedCashTable = '';
+  cash();
+};
+
+window.transferCashTable = async (encoded) => {
+  const table = decodedTable(encoded);
+  const body = tableTransferBodyFromControls(table, 'cash');
+  if (!body.toTable.trim()) return toast('Informe a mesa/comanda de destino.');
+  if (!confirm(`Mover/juntar a mesa ${body.fromTable} para ${body.toTable.trim()}?`)) return;
+  await API.post('/api/tables/transfer', body);
+  toast('Mesa/comanda movida.');
+  selectedCashTable = body.toTable.trim();
   cash();
 };
 

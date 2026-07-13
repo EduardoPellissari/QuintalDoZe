@@ -851,7 +851,7 @@ async function renderCash() {
         <span class="badge ok">${txt('admin.caixa.badge', 'Acesso admin')}</span>
       </div>
 
-      ${tableCheckoutPanel(openOrders, selectedAdminCashTable, 'admin', 'closeAdminTable', 'adminCancelOrder')}
+      ${tableCheckoutPanel(openOrders, selectedAdminCashTable, 'admin', 'closeAdminTable', 'adminCancelOrder', 'transferAdminTable')}
     </section>
   `;
 
@@ -868,6 +868,17 @@ window.closeAdminTable = async (encoded) => {
   await API.post('/api/tables/pay', tablePaymentBodyFromControls(table, 'admin'));
   toast('Mesa/comanda fechada.');
   selectedAdminCashTable = '';
+  renderCash();
+};
+
+window.transferAdminTable = async (encoded) => {
+  const table = decodedTable(encoded);
+  const body = tableTransferBodyFromControls(table, 'admin');
+  if (!body.toTable.trim()) return toast('Informe a mesa/comanda de destino.');
+  if (!confirm(`Mover/juntar a mesa ${body.fromTable} para ${body.toTable.trim()}?`)) return;
+  await API.post('/api/tables/transfer', body);
+  toast('Mesa/comanda movida.');
+  selectedAdminCashTable = body.toTable.trim();
   renderCash();
 };
 

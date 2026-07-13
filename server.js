@@ -90,8 +90,10 @@ function normalizeOrder(order) {
     total,
     paymentMethod: safeOrder.paymentMethod || '',
     paymentNote: safeOrder.paymentNote || '',
+    paymentSplitCount: Math.max(Number(safeOrder.paymentSplitCount || 0), 0),
     cancelReason: safeOrder.cancelReason || '',
     canceledAt: safeOrder.canceledAt || null,
+    tableMoves: Array.isArray(safeOrder.tableMoves) ? safeOrder.tableMoves : [],
   };
 }
 
@@ -108,6 +110,7 @@ function applyPaymentToOrder(order, payment, paidAt) {
   order.total = Math.max(subtotal + order.serviceFee - order.discount, 0);
   order.paymentMethod = paymentMethod(payment.paymentMethod);
   order.paymentNote = String(payment.paymentNote || '').trim();
+  order.paymentSplitCount = Math.max(Number(payment.paymentSplitCount || payment.splitCount || 0), 0);
   order.paid = true;
   order.paidAt = paidAt;
 
@@ -551,6 +554,7 @@ app.post('/api/tables/pay', asyncHandler(async (req, res) => {
     applyPaymentToOrder(order, {
       paymentMethod: req.body.paymentMethod,
       paymentNote: req.body.paymentNote,
+      paymentSplitCount: req.body.paymentSplitCount || req.body.splitCount,
       serviceFee: serviceParts[index],
       discount: discountParts[index],
     }, paidAt);
@@ -564,8 +568,31 @@ app.post('/api/tables/pay', asyncHandler(async (req, res) => {
     subtotal: subtotals.reduce((sum, value) => sum + value, 0),
     serviceFee,
     discount,
+    paymentSplitCount: Math.max(Number(req.body.paymentSplitCount || req.body.splitCount || 0), 0),
     total: tableOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
   });
+}));
+
+app.post('/api/tables/transfer', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const fromTable = String(req.body.fromTable || req.body.table || '').trim();
+  const toTable = String(req.body.toTable || '').trim();
+
+  if (!fromTable || !toTable) return res.status(400).json({ error: 'Informe a mesa de origem e a mesa de destino.' });
+  if (fromTable === toTable) return res.status(400).json({ error: 'A mesa de destino precisa ser diferente da atual.' });
+
+  const tableOrders = db.orders.filter((order) => openOrderForTable(order, fromTable));
+  if (!tableOrders.length) return res.status(404).json({ error: 'Nenhum pedido aberto para mover nesta mesa/comanda.' });
+
+  const movedAt = new Date().toISOString();
+  tableOrders.forEach((order) => {
+    order.tableMoves = Array.isArray(order.tableMoves) ? order.tableMoves : [];
+    order.tableMoves.push({ fromTable, toTable, movedAt });
+    order.table = toTable;
+  });
+
+  await writeDb(db);
+  res.json({ ok: true, fromTable, toTable, moved: tableOrders.length, orders: tableOrders });
 }));
 
 app.post('/api/orders/close-day', asyncHandler(async (req, res) => {
