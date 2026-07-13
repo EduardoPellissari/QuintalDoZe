@@ -868,19 +868,8 @@ async function renderCash() {
   const eventTotalOpen = eventOrders.reduce((sum, order) => sum + orderSubtotal(order), 0);
   const totalOpen = restaurantTotalOpen + eventTotalOpen;
   const occupiedTables = groups.length;
-
-  content.innerHTML = `
-    <section class="dashboard-cards">
-      <div class="dash-card"><b>${openOrders.length}</b><span>${txt('admin.caixa.cardAbertos', 'Pedidos em aberto')}</span></div>
-      <div class="dash-card"><b>${readyOrders}</b><span>${txt('admin.caixa.cardProntos', 'Prontos para fechar')}</span></div>
-      <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
-      <div class="dash-card"><b>${eventOrders.length}</b><span>Eventos no caixa</span></div>
-      <div class="dash-card"><b>${money(totalOpen)}</b><span>${txt('admin.caixa.cardTotal', 'Total em aberto')}</span></div>
-    </section>
-
-    ${cashSessionPanel(cashInfo, 'adminCash')}
-
-    <section class="panel" style="margin-top:18px">
+  const eventsPanel = eventOrders.length ? `
+    <section class="panel operation-panel">
       <div class="admin-form-head">
         <div>
           <h3>Eventos vindos de orçamento</h3>
@@ -891,39 +880,52 @@ async function renderCash() {
 
       ${eventCheckoutPanel(eventOrders, 'admin', 'closeAdminEvent', 'adminCancelOrder')}
     </section>
+  ` : '';
 
-    <section class="panel" style="margin-top:18px">
-      <div class="admin-form-head">
-        <div>
-          <h3>Mapa das mesas</h3>
-          <p>Veja rapidamente mesas livres, em atendimento, na cozinha ou prontas para fechar.</p>
-        </div>
-      </div>
-      ${tableMapPanel(restaurantOrders, selectedAdminCashTable, 'selectAdminCashTable')}
+  content.innerHTML = `
+    <section class="dashboard-cards operation-cards">
+      <div class="dash-card"><b>${openOrders.length}</b><span>${txt('admin.caixa.cardAbertos', 'Pedidos em aberto')}</span></div>
+      <div class="dash-card"><b>${readyOrders}</b><span>${txt('admin.caixa.cardProntos', 'Prontos para fechar')}</span></div>
+      <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
+      <div class="dash-card"><b>${eventOrders.length}</b><span>Eventos no caixa</span></div>
+      <div class="dash-card"><b>${money(totalOpen)}</b><span>${txt('admin.caixa.cardTotal', 'Total em aberto')}</span></div>
     </section>
 
-    <section class="panel">
-      <div class="admin-form-head">
-        <div>
-          <h3>Mesas/comandas abertas</h3>
-          <p>Escolha uma mesa para conferir os pedidos e fechar a conta.</p>
-        </div>
-        <span class="badge warn">${occupiedTables} mesa(s)</span>
-      </div>
+    ${cashSessionPanel(cashInfo, 'adminCash')}
+    ${eventsPanel}
 
-      ${tableSummaryCards(restaurantOrders, selectedAdminCashTable, 'selectAdminCashTable')}
-    </section>
-
-    <section class="panel" style="margin-top:18px">
-      <div class="admin-form-head">
+    <section class="panel operation-panel cash-fast-panel">
+      <div class="admin-form-head compact-head">
         <div>
           <h3>${txt('admin.caixa.painelTitulo', 'Caixa')}</h3>
-          <p>Informe pagamento, taxa ou desconto apenas na hora de fechar a mesa.</p>
+          <p>Escolha a mesa na esquerda e finalize a conta na direita.</p>
         </div>
         <span class="badge ok">${txt('admin.caixa.badge', 'Acesso admin')}</span>
       </div>
 
-      ${tableCheckoutPanel(restaurantOrders, selectedAdminCashTable, 'admin', 'closeAdminTable', 'adminCancelOrder', 'transferAdminTable')}
+      <div class="cash-workspace">
+        <div class="cash-workspace-left">
+          <div class="cash-block">
+            <div class="section-mini-head">
+              <h4>Mapa das mesas</h4>
+              <span>${occupiedTables} ocupada(s)</span>
+            </div>
+            ${tableMapPanel(restaurantOrders, selectedAdminCashTable, 'selectAdminCashTable')}
+          </div>
+
+          <div class="cash-block">
+            <div class="section-mini-head">
+              <h4>Mesas abertas</h4>
+              <span>Selecione para fechar</span>
+            </div>
+            ${tableSummaryCards(restaurantOrders, selectedAdminCashTable, 'selectAdminCashTable')}
+          </div>
+        </div>
+
+        <div class="cash-workspace-right">
+          ${tableCheckoutPanel(restaurantOrders, selectedAdminCashTable, 'admin', 'closeAdminTable', 'adminCancelOrder', 'transferAdminTable')}
+        </div>
+      </div>
     </section>
   `;
 

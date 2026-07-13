@@ -2759,6 +2759,435 @@ textarea {
 }
 
 /* ==================================================
+   MODO OPERACIONAL - telas mais diretas para uso diário
+   ================================================== */
+html:not(.mobile-layout) body.app-layout main {
+  padding: 16px;
+}
+
+html:not(.mobile-layout) .topbar {
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+html:not(.mobile-layout) .topbar h2 {
+  font-size: 26px;
+  line-height: 1.05;
+}
+
+html:not(.mobile-layout) .topbar p {
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+html:not(.mobile-layout) .grid {
+  gap: 14px;
+}
+
+html:not(.mobile-layout) .panel,
+html:not(.mobile-layout) .card,
+html:not(.mobile-layout) .admin-form-large,
+html:not(.mobile-layout) .admin-list-box {
+  padding: 14px;
+  border-radius: 18px;
+}
+
+html:not(.mobile-layout) .panel h2,
+html:not(.mobile-layout) .panel h3,
+html:not(.mobile-layout) .admin-form-head h3 {
+  margin-bottom: 6px;
+  font-size: 20px;
+}
+
+html:not(.mobile-layout) .admin-form-head {
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+html:not(.mobile-layout) .admin-form-head p,
+html:not(.mobile-layout) .waiter-menu-head p,
+html:not(.mobile-layout) .column-header p {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+html:not(.mobile-layout) label {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+html:not(.mobile-layout) input,
+html:not(.mobile-layout) textarea,
+html:not(.mobile-layout) select {
+  margin-top: 5px;
+  min-height: 44px;
+  padding: 10px 11px;
+  border-radius: 12px;
+}
+
+html:not(.mobile-layout) textarea {
+  min-height: 68px;
+}
+
+html:not(.mobile-layout) button {
+  padding: 10px 13px;
+  border-radius: 12px;
+}
+
+html:not(.mobile-layout) .primary {
+  margin-top: 12px;
+}
+
+html:not(.mobile-layout) .dashboard-cards.operation-cards,
+html:not(.mobile-layout) .dashboard-cards {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+html:not(.mobile-layout) .dash-card {
+  min-height: 78px;
+  padding: 12px 14px;
+  border-radius: 16px;
+}
+
+html:not(.mobile-layout) .dash-card b {
+  font-size: 24px;
+}
+
+html:not(.mobile-layout) .dash-card span {
+  font-size: 12px;
+}
+
+html:not(.mobile-layout) .operation-panel {
+  margin-top: 12px;
+}
+
+html:not(.mobile-layout) .compact-head {
+  align-items: center;
+}
+
+html:not(.mobile-layout) .cash-fast-panel {
+  overflow: hidden;
+}
+
+html:not(.mobile-layout) .cash-workspace {
+  display: grid;
+  grid-template-columns: minmax(340px, .85fr) minmax(420px, 1.15fr);
+  gap: 14px;
+  align-items: start;
+}
+
+html:not(.mobile-layout) .cash-workspace-left,
+html:not(.mobile-layout) .cash-workspace-right {
+  min-width: 0;
+}
+
+html:not(.mobile-layout) .cash-workspace-left {
+  display: grid;
+  gap: 12px;
+}
+
+html:not(.mobile-layout) .cash-block {
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(0,0,0,.18);
+  border: 1px solid rgba(255,255,255,.08);
+}
+
+html:not(.mobile-layout) .section-mini-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+html:not(.mobile-layout) .section-mini-head h4 {
+  margin: 0;
+  font-size: 15px;
+}
+
+html:not(.mobile-layout) .section-mini-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+html:not(.mobile-layout) .table-map-grid {
+  grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+  gap: 8px;
+}
+
+html:not(.mobile-layout) .table-map-card {
+  min-height: 74px;
+  padding: 10px;
+  border-radius: 14px;
+}
+
+html:not(.mobile-layout) .table-map-name b {
+  font-size: 19px;
+}
+
+html:not(.mobile-layout) .table-status-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+html:not(.mobile-layout) .table-status-card {
+  padding: 12px;
+  border-radius: 14px;
+}
+
+html:not(.mobile-layout) .table-status-card b {
+  font-size: 22px;
+}
+
+html:not(.mobile-layout) .table-checkout {
+  gap: 10px;
+}
+
+html:not(.mobile-layout) .table-checkout-head,
+html:not(.mobile-layout) .event-checkout-head {
+  padding: 14px;
+  border-radius: 16px;
+}
+
+html:not(.mobile-layout) .table-checkout-head h3,
+html:not(.mobile-layout) .event-checkout-head h3 {
+  font-size: 28px;
+}
+
+html:not(.mobile-layout) .table-checkout-head > b,
+html:not(.mobile-layout) .event-checkout-head > b {
+  font-size: 23px;
+}
+
+html:not(.mobile-layout) .table-checkout-orders {
+  gap: 8px;
+}
+
+html:not(.mobile-layout) .table-checkout-order {
+  padding: 11px;
+  border-radius: 14px;
+}
+
+html:not(.mobile-layout) .cart-line {
+  padding: 8px 0;
+}
+
+html:not(.mobile-layout) .payment-box,
+html:not(.mobile-layout) .table-transfer-box {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 14px;
+}
+
+html:not(.mobile-layout) .payment-grid {
+  gap: 8px;
+}
+
+html:not(.mobile-layout) .payment-total {
+  padding: 10px 12px;
+}
+
+html:not(.mobile-layout) .table-final-actions .primary,
+html:not(.mobile-layout) .table-final-actions .soft,
+html:not(.mobile-layout) .table-close-button {
+  min-height: 48px;
+}
+
+html:not(.mobile-layout) .cash-session-panel {
+  margin-bottom: 12px;
+}
+
+html:not(.mobile-layout) .cash-session-grid {
+  gap: 8px;
+}
+
+html:not(.mobile-layout) .cash-session-grid .primary,
+html:not(.mobile-layout) .cash-session-grid .soft,
+html:not(.mobile-layout) .cash-session-grid .danger {
+  min-height: 44px;
+}
+
+html:not(.mobile-layout) .waiter-order-panel {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+html:not(.mobile-layout) .waiter-menu-head {
+  margin-bottom: 10px;
+}
+
+html:not(.mobile-layout) .category-menu {
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+}
+
+html:not(.mobile-layout) .category-pill {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+html:not(.mobile-layout) .menu-grid {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+html:not(.mobile-layout) .menu-product-card {
+  min-height: 140px;
+  padding: 12px;
+  border-radius: 14px;
+}
+
+html:not(.mobile-layout) .menu-product-card p {
+  display: -webkit-box;
+  min-height: 0;
+  margin: 8px 0;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 13px;
+}
+
+html:not(.mobile-layout) .table-picker {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 14px;
+}
+
+html:not(.mobile-layout) .table-picker-grid {
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  gap: 6px;
+}
+
+html:not(.mobile-layout) .table-picker-chip {
+  min-height: 36px;
+  padding: 7px;
+  border-radius: 11px;
+}
+
+html:not(.mobile-layout) .table-picker-note {
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+html:not(.mobile-layout) .admin-form-grid {
+  gap: 12px;
+}
+
+html:not(.mobile-layout) .admin-form-large input,
+html:not(.mobile-layout) .admin-form-large select,
+html:not(.mobile-layout) .admin-form-large textarea {
+  min-height: 46px;
+  font-size: 14px;
+}
+
+html:not(.mobile-layout) .admin-form-large textarea {
+  min-height: 84px;
+}
+
+html:not(.mobile-layout) .form-actions-row {
+  margin-top: 12px;
+}
+
+html:not(.mobile-layout) .table th,
+html:not(.mobile-layout) .table td {
+  padding: 9px 10px;
+}
+
+html:not(.mobile-layout) .quote-editor,
+html:not(.mobile-layout) .quote-card {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 16px;
+}
+
+html:not(.mobile-layout) .quote-items,
+html:not(.mobile-layout) .quote-list {
+  gap: 10px;
+}
+
+html:not(.mobile-layout) .quote-item-row {
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+}
+
+html:not(.mobile-layout) .quote-total-box {
+  margin-top: 12px;
+  padding: 12px;
+}
+
+html:not(.mobile-layout) .kitchen-pro-header {
+  padding: 14px;
+  border-radius: 18px;
+}
+
+html:not(.mobile-layout) .kitchen-pro-header h2 {
+  margin: 6px 0 2px;
+  font-size: clamp(24px, 2.4vw, 32px);
+}
+
+html:not(.mobile-layout) .kitchen-board {
+  gap: 12px;
+  margin-top: 12px;
+}
+
+html:not(.mobile-layout) .kitchen-column {
+  min-height: 420px;
+  padding: 11px;
+  border-radius: 16px;
+}
+
+html:not(.mobile-layout) .column-header {
+  margin-bottom: 10px;
+}
+
+html:not(.mobile-layout) .column-header h3 {
+  font-size: 17px;
+}
+
+html:not(.mobile-layout) .column-header strong {
+  min-width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+
+html:not(.mobile-layout) .orders-list {
+  gap: 10px;
+}
+
+html:not(.mobile-layout) .kitchen-pro-card {
+  gap: 10px;
+  border-radius: 20px;
+}
+
+html:not(.mobile-layout) .kitchen-card h2 {
+  font-size: 34px;
+}
+
+html:not(.mobile-layout) .kitchen-pro-time,
+html:not(.mobile-layout) .priority-alert,
+html:not(.mobile-layout) .kitchen-items li,
+html:not(.mobile-layout) .kitchen-notes {
+  padding: 9px 10px;
+  border-radius: 13px;
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  html:not(.mobile-layout) .cash-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==================================================
    CORREÇÃO MOBILE ROBUSTA (ADMIN / USUÁRIOS / PRODUTOS)
    ================================================== */
 .app-shell > .sidebar,

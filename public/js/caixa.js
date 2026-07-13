@@ -45,18 +45,8 @@ async function cash() {
   const restaurantTotalOpen = groups.reduce((sum, group) => sum + group.subtotal, 0);
   const eventTotalOpen = eventOrders.reduce((sum, order) => sum + orderSubtotal(order), 0);
   const totalOpen = restaurantTotalOpen + eventTotalOpen;
-
-  document.getElementById('content').innerHTML = `
-    <section class="dashboard-cards">
-      <div class="dash-card"><b>${openOrders.length}</b><span>Pedidos em aberto</span></div>
-      <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
-      <div class="dash-card"><b>${eventOrders.length}</b><span>Eventos no caixa</span></div>
-      <div class="dash-card"><b>${money(totalOpen)}</b><span>Total em aberto</span></div>
-    </section>
-
-    ${cashSessionPanel(cashInfo, 'cash')}
-
-    <section class="panel" style="margin-top:18px">
+  const eventsPanel = eventOrders.length ? `
+    <section class="panel operation-panel">
       <div class="admin-form-head">
         <div>
           <h3>Eventos vindos de orçamento</h3>
@@ -67,39 +57,51 @@ async function cash() {
 
       ${eventCheckoutPanel(eventOrders, 'cash', 'closeCashEvent', 'cancelOrder')}
     </section>
+  ` : '';
 
-    <section class="panel" style="margin-top:18px">
-      <div class="admin-form-head">
-        <div>
-          <h3>Mapa das mesas</h3>
-          <p>Veja rapidamente mesas livres, em atendimento, na cozinha ou prontas para fechar.</p>
-        </div>
-      </div>
-      ${tableMapPanel(restaurantOrders, selectedCashTable, 'selectCashTable')}
+  document.getElementById('content').innerHTML = `
+    <section class="dashboard-cards operation-cards">
+      <div class="dash-card"><b>${openOrders.length}</b><span>Pedidos em aberto</span></div>
+      <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
+      <div class="dash-card"><b>${eventOrders.length}</b><span>Eventos no caixa</span></div>
+      <div class="dash-card"><b>${money(totalOpen)}</b><span>Total em aberto</span></div>
     </section>
 
-    <section class="panel">
-      <div class="admin-form-head">
-        <div>
-          <h3>Mesas/comandas abertas</h3>
-          <p>Escolha uma mesa para conferir os pedidos e fechar a conta.</p>
-        </div>
-        <span class="badge warn">${occupiedTables} mesa(s)</span>
-      </div>
+    ${cashSessionPanel(cashInfo, 'cash')}
+    ${eventsPanel}
 
-      ${tableSummaryCards(restaurantOrders, selectedCashTable, 'selectCashTable')}
-    </section>
-
-    <section class="panel" style="margin-top:18px">
-      <div class="admin-form-head">
+    <section class="panel operation-panel cash-fast-panel">
+      <div class="admin-form-head compact-head">
         <div>
-          <h3>Fechamento</h3>
-          <p>Informe pagamento, taxa ou desconto apenas na hora de fechar a mesa.</p>
+          <h3>Fechar mesa/comanda</h3>
+          <p>Escolha a mesa na esquerda e finalize a conta na direita.</p>
         </div>
         <span class="badge ok">Caixa</span>
       </div>
 
-      ${tableCheckoutPanel(restaurantOrders, selectedCashTable, 'cash', 'closeCashTable', 'cancelOrder', 'transferCashTable')}
+      <div class="cash-workspace">
+        <div class="cash-workspace-left">
+          <div class="cash-block">
+            <div class="section-mini-head">
+              <h4>Mapa das mesas</h4>
+              <span>${occupiedTables} ocupada(s)</span>
+            </div>
+            ${tableMapPanel(restaurantOrders, selectedCashTable, 'selectCashTable')}
+          </div>
+
+          <div class="cash-block">
+            <div class="section-mini-head">
+              <h4>Mesas abertas</h4>
+              <span>Selecione para fechar</span>
+            </div>
+            ${tableSummaryCards(restaurantOrders, selectedCashTable, 'selectCashTable')}
+          </div>
+        </div>
+
+        <div class="cash-workspace-right">
+          ${tableCheckoutPanel(restaurantOrders, selectedCashTable, 'cash', 'closeCashTable', 'cancelOrder', 'transferCashTable')}
+        </div>
+      </div>
     </section>
   `;
 
