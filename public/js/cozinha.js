@@ -14,35 +14,7 @@ setText('pageSub', txt('cozinha.subtitulo', 'Acompanhe e atualize o preparo dos 
 
 let lastIds = new Set();
 let soundEnabled = false;
-let activeTab = 'pendente';
 let urgentNotifiedIds = new Set();
-
-const kitchenTabs = [
-  {
-    key: 'pendente',
-    icon: '🟡',
-    title: txt('cozinha.abaNovos', 'Novos pedidos'),
-    subtitle: txt('cozinha.abaNovosSub', 'Pedidos recém-enviados'),
-    emptyTitle: txt('cozinha.vazioNovosTitulo', 'Nenhum pedido novo'),
-    emptyText: txt('cozinha.vazioNovosTexto', 'Quando o garçom enviar uma nova comanda, ela aparecerá aqui.'),
-  },
-  {
-    key: 'preparando',
-    icon: '🔵',
-    title: txt('cozinha.abaPreparo', 'Em preparo'),
-    subtitle: txt('cozinha.abaPreparoSub', 'Pedidos sendo preparados'),
-    emptyTitle: txt('cozinha.vazioPreparoTitulo', 'Nada em preparo'),
-    emptyText: txt('cozinha.vazioPreparoTexto', 'Os pedidos iniciados pela cozinha ficam nesta aba.'),
-  },
-  {
-    key: 'pronto',
-    icon: '🟢',
-    title: txt('cozinha.abaProntos', 'Prontos'),
-    subtitle: txt('cozinha.abaProntosSub', 'Pedidos prontos para retirada'),
-    emptyTitle: txt('cozinha.vazioProntosTitulo', 'Nenhum pedido pronto'),
-    emptyText: txt('cozinha.vazioProntosTexto', 'Assim que um pedido for marcado como pronto, ele aparecerá aqui.'),
-  },
-];
 
 function playTone(frequency = 880, duration = 180, volume = 0.08) {
   if (!soundEnabled) return;
@@ -74,18 +46,6 @@ function urgentBeep() {
 
 function orderByTime(orders) {
   return [...orders].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-}
-
-function getCounts(orders) {
-  return {
-    pendente: orders.filter((order) => order.status === 'pendente').length,
-    preparando: orders.filter((order) => order.status === 'preparando').length,
-    pronto: orders.filter((order) => order.status === 'pronto').length,
-  };
-}
-
-function getActiveTabInfo() {
-  return kitchenTabs.find((tab) => tab.key === activeTab) || kitchenTabs[0];
 }
 
 function getMinutesWaiting(createdAt) {
@@ -202,7 +162,6 @@ async function render() {
   urgentNotifiedIds = currentUrgentIds;
   lastIds = ids;
 
-  const counts = getCounts(orders);
   const pendentes = orderByPriority(orders.filter((order) => order.status === 'pendente'));
   const preparando = orderByPriority(orders.filter((order) => order.status === 'preparando'));
   const prontos = orderByPriority(orders.filter((order) => order.status === 'pronto'));
@@ -224,10 +183,6 @@ async function render() {
           <button class="soft" id="notBtn">${txt('cozinha.permitirNotificacao', 'Permitir notificação')}</button>
           <button class="soft danger-outline" id="closeDayBtn">Encerrar dia</button>
         </div>
-      </div>
-
-      <div class="kitchen-status-tabs kitchen-summary-tabs">
-        ${kitchenTabs.map((tab) => tabSummary(tab, counts[tab.key])).join('')}
       </div>
 
       <section class="kitchen-board">
@@ -284,21 +239,6 @@ async function render() {
   };
 
   document.getElementById('closeDayBtn').onclick = closeKitchenDay;
-}
-
-function tabSummary(tab, count) {
-  return `
-    <div class="kitchen-status-tab status-${tab.key}">
-      <span class="tab-main">
-        <span class="tab-icon">${tab.icon}</span>
-        <span>
-          <b>${tab.title}</b>
-          <small>${tab.subtitle}</small>
-        </span>
-      </span>
-      <span class="tab-count">${count}</span>
-    </div>
-  `;
 }
 
 function emptyColumn(message) {
@@ -407,13 +347,7 @@ async function statusOrder(id, status) {
   render();
 }
 
-function changeKitchenTab(tab) {
-  activeTab = tab;
-  render();
-}
-
 window.statusOrder = statusOrder;
-window.changeKitchenTab = changeKitchenTab;
 
 render();
 setInterval(render, 1000);
