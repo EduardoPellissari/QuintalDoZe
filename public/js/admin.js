@@ -25,6 +25,7 @@ let editingQuote = null;
 let quoteProducts = [];
 let quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
 let adminReportDate = todayDateValue();
+let selectedAdminCashTable = '';
 
 const quoteTypes = ['Café da tarde', 'Happy hour', 'Coffee break', 'Almoço/Jantar', 'Evento personalizado'];
 const quoteStatuses = [
@@ -806,43 +807,20 @@ window.printQuote = async (id) => {
   });
 };
 
-function tableOverview(openOrders) {
-  const byTable = {};
-
-  openOrders.forEach((order) => {
-    const key = order.table || 'Sem mesa';
-    if (!byTable[key]) byTable[key] = { table: key, total: 0, orders: 0, ready: 0, preparing: 0 };
-    byTable[key].orders += 1;
-    byTable[key].total += orderFinalTotal(order);
-    if (order.status === 'pronto') byTable[key].ready += 1;
-    if (order.status === 'preparando') byTable[key].preparing += 1;
-  });
-
-  const tables = Object.values(byTable).sort((a, b) => String(a.table).localeCompare(String(b.table), 'pt-BR'));
-  if (!tables.length) return '<p class="muted">Nenhuma mesa ocupada no momento.</p>';
-
-  return `
-    <div class="table-status-grid">
-      ${tables.map((table) => `
-        <div class="table-status-card">
-          <span>Mesa/Comanda</span>
-          <b>${escapeHtml(table.table)}</b>
-          <small>${table.orders} pedido(s) • ${table.ready} pronto(s) • ${money(table.total)}</small>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
-
 async function renderCash() {
   setText('pageTitle', txt('admin.caixa.titulo', 'Caixa'));
   setText('pageSub', txt('admin.caixa.subtitulo', 'Fechamento de pedidos em aberto dentro do painel admin.'));
 
   const orders = await API.get('/api/orders');
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
+  const groups = groupOrdersByTable(openOrders);
+  if (!selectedAdminCashTable || !groups.some((group) => group.table === selectedAdminCashTable)) {
+    selectedAdminCashTable = groups[0]?.table || '';
+  }
+
   const readyOrders = openOrders.filter((order) => order.status === 'pronto').length;
-  const totalOpen = openOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
-  const occupiedTables = new Set(openOrders.map((order) => order.table || 'Sem mesa')).size;
+  const totalOpen = groups.reduce((sum, group) => sum + group.subtotal, 0);
+  const occupiedTables = groups.length;
 
   content.innerHTML = `
     <section class="dashboard-cards">
@@ -855,68 +833,43 @@ async function renderCash() {
     <section class="panel">
       <div class="admin-form-head">
         <div>
-          <h3>Controle de mesas</h3>
-          <p>Veja quais mesas/comandas estão abertas antes de fechar pagamentos.</p>
+          <h3>Mesas/comandas abertas</h3>
+          <p>Escolha uma mesa para conferir os pedidos e fechar a conta.</p>
         </div>
         <span class="badge warn">${occupiedTables} mesa(s)</span>
       </div>
 
-      ${tableOverview(openOrders)}
+      ${tableSummaryCards(openOrders, selectedAdminCashTable, 'selectAdminCashTable')}
     </section>
 
     <section class="panel" style="margin-top:18px">
       <div class="admin-form-head">
         <div>
           <h3>${txt('admin.caixa.painelTitulo', 'Caixa')}</h3>
-          <p>Feche a conta com forma de pagamento, taxa de serviço e desconto quando necessário.</p>
+          <p>Informe pagamento, taxa ou desconto apenas na hora de fechar a mesa.</p>
         </div>
         <span class="badge ok">${txt('admin.caixa.badge', 'Acesso admin')}</span>
       </div>
 
-      <div class="order-list">
-        ${openOrders.length ? openOrders.map(orderCard).join('') : `<p class="muted">${txt('pedidos.nenhumAberto', 'Nenhum pedido em aberto.')}</p>`}
-      </div>
+      ${tableCheckoutPanel(openOrders, selectedAdminCashTable, 'admin', 'closeAdminTable', 'adminCancelOrder')}
     </section>
   `;
 
   bindPaymentControls('admin');
 }
 
-function orderCard(order) {
-  return `
-    <div class="card">
-      <div class="order-head">
-        <div>
-          <b>${txt('pedidos.mesa', 'Mesa')} ${order.table}</b>
-          <p class="muted">${order.waiter || txt('pedidos.garcomNaoInformado', 'Garçom não informado')} • ${dateTime(order.createdAt)}</p>
-        </div>
-        <span class="badge ${order.status === 'pronto' ? 'ok' : 'warn'}">${statusLabel(order.status)}</span>
-      </div>
+window.selectAdminCashTable = (encoded) => {
+  selectedAdminCashTable = decodedTable(encoded);
+  renderCash();
+};
 
-      <div>
-        ${order.items.map((item) => `
-          <div class="cart-line">
-            <span>${item.qty}x ${item.name}</span>
-            <b>${money(item.price * item.qty)}</b>
-          </div>
-        `).join('')}
-      </div>
-
-      <div class="metric" style="margin-top:12px">
-        <b>Subtotal</b>
-        <b>${money(orderSubtotal(order))}</b>
-      </div>
-
-      ${orderPaymentControls(order, 'admin')}
-
-      <div class="actions" style="margin-top:12px">
-        <button class="primary" onclick="adminPayOrder(${order.id})">${txt('pedidos.marcarPago', 'Marcar como pago')}</button>
-        <button class="danger" onclick="adminCancelOrder(${order.id})">${txt('pedidos.cancelar', 'Cancelar')}</button>
-      </div>
-    </div>
-  `;
-}
-
+window.closeAdminTable = async (encoded) => {
+  const table = decodedTable(encoded);
+  await API.post('/api/tables/pay', tablePaymentBodyFromControls(table, 'admin'));
+  toast('Mesa/comanda fechada.');
+  selectedAdminCashTable = '';
+  renderCash();
+};
 
 function orderDurationMinutes(order) {
   const start = new Date(order.createdAt).getTime();
@@ -1029,12 +982,6 @@ async function renderReports() {
 window.setAdminReportDate = (value) => {
   adminReportDate = value || todayDateValue();
   renderReports();
-};
-
-window.adminPayOrder = async (id) => {
-  await API.put('/api/orders/' + id + '/pay', paymentBodyFromControls(id, 'admin'));
-  toast(txt('pedidos.pedidoPago', 'Pedido pago.'));
-  renderCash();
 };
 
 window.adminCancelOrder = async (id) => {

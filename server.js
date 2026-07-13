@@ -95,6 +95,42 @@ function normalizeOrder(order) {
   };
 }
 
+function openOrderForTable(order, table) {
+  return String(order.table || '') === String(table || '') && !order.paid && order.status !== 'cancelado';
+}
+
+function applyPaymentToOrder(order, payment, paidAt) {
+  const subtotal = orderSubtotal(order);
+
+  order.subtotal = subtotal;
+  order.serviceFee = Math.max(Number(payment.serviceFee || 0), 0);
+  order.discount = Math.max(Number(payment.discount || 0), 0);
+  order.total = Math.max(subtotal + order.serviceFee - order.discount, 0);
+  order.paymentMethod = paymentMethod(payment.paymentMethod);
+  order.paymentNote = String(payment.paymentNote || '').trim();
+  order.paid = true;
+  order.paidAt = paidAt;
+
+  if (!['cancelado', 'entregue'].includes(order.status)) {
+    order.status = 'entregue';
+    if (!order.deliveredAt) order.deliveredAt = paidAt;
+  }
+}
+
+function splitAmount(amount, weights) {
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  let used = 0;
+
+  return weights.map((weight, index) => {
+    if (!amount || !totalWeight) return 0;
+    if (index === weights.length - 1) return Number((amount - used).toFixed(2));
+
+    const part = Number((amount * (weight / totalWeight)).toFixed(2));
+    used += part;
+    return part;
+  });
+}
+
 function normalizeDb(dbCandidate) {
   const defaults = defaultDb();
   const db = dbCandidate && typeof dbCandidate === 'object' ? dbCandidate : {};
@@ -490,25 +526,46 @@ app.put('/api/orders/:id/pay', asyncHandler(async (req, res) => {
   const order = db.orders.find((o) => String(o.id) === String(req.params.id));
   if (!order) return res.status(404).json({ error: 'Pedido não encontrado.' });
 
-  const subtotal = orderSubtotal(order);
-  const serviceFee = Math.max(Number(req.body.serviceFee || 0), 0);
-  const discount = Math.max(Number(req.body.discount || 0), 0);
-
-  order.subtotal = subtotal;
-  order.serviceFee = serviceFee;
-  order.discount = discount;
-  order.total = Math.max(subtotal + serviceFee - discount, 0);
-  order.paymentMethod = paymentMethod(req.body.paymentMethod);
-  order.paymentNote = String(req.body.paymentNote || '').trim();
-  order.paid = true;
-  order.paidAt = new Date().toISOString();
-  if (!['cancelado', 'entregue'].includes(order.status)) {
-    order.status = 'entregue';
-    if (!order.deliveredAt) order.deliveredAt = order.paidAt;
-  }
+  applyPaymentToOrder(order, req.body, new Date().toISOString());
 
   await writeDb(db);
   res.json(order);
+}));
+
+app.post('/api/tables/pay', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const table = String(req.body.table || '').trim();
+  if (!table) return res.status(400).json({ error: 'Informe a mesa/comanda.' });
+
+  const tableOrders = db.orders.filter((order) => openOrderForTable(order, table));
+  if (!tableOrders.length) return res.status(404).json({ error: 'Nenhum pedido aberto para esta mesa/comanda.' });
+
+  const serviceFee = Math.max(Number(req.body.serviceFee || 0), 0);
+  const discount = Math.max(Number(req.body.discount || 0), 0);
+  const subtotals = tableOrders.map(orderSubtotal);
+  const serviceParts = splitAmount(serviceFee, subtotals);
+  const discountParts = splitAmount(discount, subtotals);
+  const paidAt = new Date().toISOString();
+
+  tableOrders.forEach((order, index) => {
+    applyPaymentToOrder(order, {
+      paymentMethod: req.body.paymentMethod,
+      paymentNote: req.body.paymentNote,
+      serviceFee: serviceParts[index],
+      discount: discountParts[index],
+    }, paidAt);
+  });
+
+  await writeDb(db);
+  res.json({
+    ok: true,
+    table,
+    orders: tableOrders,
+    subtotal: subtotals.reduce((sum, value) => sum + value, 0),
+    serviceFee,
+    discount,
+    total: tableOrders.reduce((sum, order) => sum + Number(order.total || 0), 0),
+  });
 }));
 
 app.post('/api/orders/close-day', asyncHandler(async (req, res) => {

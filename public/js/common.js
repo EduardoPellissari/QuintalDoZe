@@ -66,6 +66,7 @@ function htmlAttr(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
@@ -130,43 +131,6 @@ function paymentOptions(selected = '') {
     .join('');
 }
 
-function orderPaymentControls(order, scope) {
-  const subtotal = orderSubtotal(order);
-  const serviceFee = orderServiceFee(order);
-  const discount = orderDiscount(order);
-  const total = Math.max(subtotal + serviceFee - discount, 0);
-  const method = order.paymentMethod || 'pix';
-
-  return `
-    <div class="payment-box" data-payment-box="${scope}-${order.id}" data-subtotal="${subtotal}">
-      <div class="payment-grid">
-        <label>Forma de pagamento
-          <select id="${paymentFieldId(order.id, scope, 'method')}" class="payment-control" data-order="${order.id}" data-scope="${scope}">
-            ${paymentOptions(method)}
-          </select>
-        </label>
-
-        <label>Taxa de serviço
-          <input id="${paymentFieldId(order.id, scope, 'service')}" class="payment-control" data-order="${order.id}" data-scope="${scope}" type="number" min="0" step="0.01" value="${serviceFee || ''}" placeholder="Ex: 10.00">
-        </label>
-
-        <label>Desconto
-          <input id="${paymentFieldId(order.id, scope, 'discount')}" class="payment-control" data-order="${order.id}" data-scope="${scope}" type="number" min="0" step="0.01" value="${discount || ''}" placeholder="Ex: 5.00">
-        </label>
-
-        <label>Observação
-          <input id="${paymentFieldId(order.id, scope, 'note')}" value="${htmlAttr(order.paymentNote || '')}" placeholder="Ex: parte Pix, parte cartão">
-        </label>
-      </div>
-
-      <div class="payment-total">
-        <span>Total a receber</span>
-        <b id="${paymentFieldId(order.id, scope, 'total')}">${money(total)}</b>
-      </div>
-    </div>
-  `;
-}
-
 function updatePaymentPreview(id, scope) {
   const box = document.querySelector(`[data-payment-box="${scope}-${id}"]`);
   if (!box) return;
@@ -193,6 +157,145 @@ function paymentBodyFromControls(id, scope) {
     discount: Number(document.getElementById(paymentFieldId(id, scope, 'discount'))?.value || 0),
     paymentNote: document.getElementById(paymentFieldId(id, scope, 'note'))?.value || '',
   };
+}
+
+function tableKey(table) {
+  return String(table || 'Sem mesa');
+}
+
+function encodedTable(table) {
+  return encodeURIComponent(tableKey(table));
+}
+
+function decodedTable(value) {
+  return decodeURIComponent(String(value || ''));
+}
+
+function groupOrdersByTable(openOrders) {
+  const groups = {};
+
+  openOrders.forEach((order) => {
+    const key = tableKey(order.table);
+    if (!groups[key]) groups[key] = { table: key, orders: [], subtotal: 0, ready: 0 };
+    groups[key].orders.push(order);
+    groups[key].subtotal += orderSubtotal(order);
+    if (order.status === 'pronto') groups[key].ready += 1;
+  });
+
+  return Object.values(groups).sort((a, b) => String(a.table).localeCompare(String(b.table), 'pt-BR'));
+}
+
+function tablePaymentControls(table, subtotal, scope) {
+  const key = encodedTable(table);
+
+  return `
+    <div class="payment-box" data-payment-box="${scope}-${key}" data-subtotal="${subtotal}">
+      <div class="payment-grid table-payment-grid">
+        <label>Forma de pagamento
+          <select id="${paymentFieldId(key, scope, 'method')}" class="payment-control" data-order="${key}" data-scope="${scope}">
+            ${paymentOptions('pix')}
+          </select>
+        </label>
+
+        <label>Taxa de serviço
+          <input id="${paymentFieldId(key, scope, 'service')}" class="payment-control" data-order="${key}" data-scope="${scope}" type="number" min="0" step="0.01" placeholder="Opcional">
+        </label>
+
+        <label>Desconto
+          <input id="${paymentFieldId(key, scope, 'discount')}" class="payment-control" data-order="${key}" data-scope="${scope}" type="number" min="0" step="0.01" placeholder="Opcional">
+        </label>
+
+        <label>Observação
+          <input id="${paymentFieldId(key, scope, 'note')}" placeholder="Opcional">
+        </label>
+      </div>
+
+      <div class="payment-total">
+        <span>Total a receber</span>
+        <b id="${paymentFieldId(key, scope, 'total')}">${money(subtotal)}</b>
+      </div>
+    </div>
+  `;
+}
+
+function tablePaymentBodyFromControls(table, scope) {
+  return {
+    table: tableKey(table),
+    ...paymentBodyFromControls(encodedTable(table), scope),
+  };
+}
+
+function tableSummaryCards(openOrders, selectedTable, selectFunctionName) {
+  const groups = groupOrdersByTable(openOrders);
+  if (!groups.length) return '<p class="muted">Nenhuma mesa ocupada no momento.</p>';
+
+  return `
+    <div class="table-status-grid">
+      ${groups.map((group) => {
+        const active = tableKey(selectedTable) === group.table;
+        return `
+          <button class="table-status-card ${active ? 'active' : ''}" type="button" onclick="${selectFunctionName}('${encodedTable(group.table)}')">
+            <span>Mesa/Comanda</span>
+            <b>${htmlAttr(group.table)}</b>
+            <small>${group.orders.length} pedido(s) • ${group.ready} pronto(s) • ${money(group.subtotal)}</small>
+          </button>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function tableCheckoutPanel(openOrders, selectedTable, scope, closeFunctionName, cancelFunctionName) {
+  const groups = groupOrdersByTable(openOrders);
+  const group = groups.find((item) => item.table === tableKey(selectedTable)) || groups[0];
+
+  if (!group) {
+    return '<p class="muted">Selecione uma mesa/comanda para fechar a conta.</p>';
+  }
+
+  return `
+    <div class="table-checkout">
+      <div class="table-checkout-head">
+        <div>
+          <span>Fechamento da mesa/comanda</span>
+          <h3>${htmlAttr(group.table)}</h3>
+          <p>${group.orders.length} pedido(s) aberto(s)</p>
+        </div>
+        <b>${money(group.subtotal)}</b>
+      </div>
+
+      <div class="table-checkout-orders">
+        ${group.orders.map((order) => `
+          <div class="table-checkout-order">
+            <div class="order-head">
+              <div>
+                <b>Pedido #${order.id}</b>
+                <p class="muted">${order.waiter || 'Garçom não informado'} • ${dateTime(order.createdAt)}</p>
+              </div>
+              <span class="badge ${order.status === 'pronto' ? 'ok' : 'warn'}">${statusLabel(order.status)}</span>
+            </div>
+
+            ${(order.items || []).map((item) => `
+              <div class="cart-line">
+                <span>${Number(item.qty || 1)}x ${htmlAttr(item.name)}</span>
+                <b>${money(Number(item.price || 0) * Number(item.qty || 1))}</b>
+              </div>
+            `).join('')}
+
+            ${order.notes ? `<p class="muted" style="margin:8px 0 0">Obs.: ${htmlAttr(order.notes)}</p>` : ''}
+
+            <div class="actions" style="margin-top:10px">
+              <button class="danger" type="button" onclick="${cancelFunctionName}(${order.id})">Cancelar pedido</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
+      ${tablePaymentControls(group.table, group.subtotal, scope)}
+
+      <button class="primary table-close-button" type="button" onclick="${closeFunctionName}('${encodedTable(group.table)}')">Fechar mesa/comanda</button>
+    </div>
+  `;
 }
 
 function openReportPrintDocument({

@@ -15,6 +15,7 @@ setText('pageTitle', txt('caixa.titulo', 'Caixa'));
 setText('pageSub', txt('caixa.subtitulo', 'Fechamento e relatórios.'));
 
 let cashReportDate = todayDateValue();
+let selectedCashTable = '';
 
 document.getElementById('sideNav').addEventListener('click', (event) => {
   const button = event.target.closest('button[data-tab]');
@@ -30,8 +31,13 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
 async function cash() {
   const orders = await API.get('/api/orders');
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
-  const occupiedTables = new Set(openOrders.map((order) => order.table || 'Sem mesa')).size;
-  const totalOpen = openOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
+  const groups = groupOrdersByTable(openOrders);
+  if (!selectedCashTable || !groups.some((group) => group.table === selectedCashTable)) {
+    selectedCashTable = groups[0]?.table || '';
+  }
+
+  const occupiedTables = groups.length;
+  const totalOpen = groups.reduce((sum, group) => sum + group.subtotal, 0);
 
   document.getElementById('content').innerHTML = `
     <section class="dashboard-cards">
@@ -43,88 +49,43 @@ async function cash() {
     <section class="panel">
       <div class="admin-form-head">
         <div>
-          <h3>Controle de mesas</h3>
-          <p>Veja as mesas/comandas abertas antes de fechar o pagamento.</p>
+          <h3>Mesas/comandas abertas</h3>
+          <p>Escolha uma mesa para conferir os pedidos e fechar a conta.</p>
         </div>
         <span class="badge warn">${occupiedTables} mesa(s)</span>
       </div>
 
-      ${tableOverview(openOrders)}
+      ${tableSummaryCards(openOrders, selectedCashTable, 'selectCashTable')}
     </section>
 
     <section class="panel" style="margin-top:18px">
-      <h3>${txt('caixa.pedidosAbertos', 'Pedidos em aberto')}</h3>
-      <div class="order-list">
-        ${openOrders.length ? openOrders.map(orderCard).join('') : `<p class="muted">${txt('pedidos.nenhumAberto', 'Nenhum pedido em aberto.')}</p>`}
+      <div class="admin-form-head">
+        <div>
+          <h3>Fechamento</h3>
+          <p>Informe pagamento, taxa ou desconto apenas na hora de fechar a mesa.</p>
+        </div>
+        <span class="badge ok">Caixa</span>
       </div>
+
+      ${tableCheckoutPanel(openOrders, selectedCashTable, 'cash', 'closeCashTable', 'cancelOrder')}
     </section>
   `;
 
   bindPaymentControls('cash');
 }
 
-function tableOverview(openOrders) {
-  const byTable = {};
+window.selectCashTable = (encoded) => {
+  selectedCashTable = decodedTable(encoded);
+  cash();
+};
 
-  openOrders.forEach((order) => {
-    const key = order.table || 'Sem mesa';
-    if (!byTable[key]) byTable[key] = { table: key, total: 0, orders: 0, ready: 0 };
-    byTable[key].orders += 1;
-    byTable[key].total += orderFinalTotal(order);
-    if (order.status === 'pronto') byTable[key].ready += 1;
-  });
-
-  const tables = Object.values(byTable).sort((a, b) => String(a.table).localeCompare(String(b.table), 'pt-BR'));
-  if (!tables.length) return '<p class="muted">Nenhuma mesa ocupada no momento.</p>';
-
-  return `
-    <div class="table-status-grid">
-      ${tables.map((table) => `
-        <div class="table-status-card">
-          <span>Mesa/Comanda</span>
-          <b>${htmlAttr(table.table)}</b>
-          <small>${table.orders} pedido(s) • ${table.ready} pronto(s) • ${money(table.total)}</small>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
-
-function orderCard(order) {
-  return `
-    <div class="card">
-      <div class="order-head">
-        <div>
-          <b>${txt('pedidos.mesa', 'Mesa')} ${order.table}</b>
-          <p class="muted">${order.waiter || txt('pedidos.garcomNaoInformado', 'Garçom não informado')} • ${dateTime(order.createdAt)}</p>
-        </div>
-        <span class="badge ${order.status === 'pronto' ? 'ok' : 'warn'}">${statusLabel(order.status)}</span>
-      </div>
-
-      <div>
-        ${order.items.map((item) => `
-          <div class="cart-line">
-            <span>${item.qty}x ${item.name}</span>
-            <b>${money(item.price * item.qty)}</b>
-          </div>
-        `).join('')}
-      </div>
-
-      <div class="metric" style="margin-top:12px">
-        <b>Subtotal</b>
-        <b>${money(orderSubtotal(order))}</b>
-      </div>
-
-      ${orderPaymentControls(order, 'cash')}
-
-      <div class="actions" style="margin-top:12px">
-        <button class="primary" onclick="pay(${order.id})">${txt('pedidos.marcarPago', 'Marcar como pago')}</button>
-        <button class="danger" onclick="cancelOrder(${order.id})">${txt('pedidos.cancelar', 'Cancelar')}</button>
-      </div>
-    </div>
-  `;
-}
-
+window.closeCashTable = async (encoded) => {
+  const table = decodedTable(encoded);
+  await API.post('/api/tables/pay', tablePaymentBodyFromControls(table, 'cash'));
+  toast('Mesa/comanda fechada.');
+  selectedCashTable = '';
+  cash();
+};
 
 function orderDurationMinutes(order) {
   const start = new Date(order.createdAt).getTime();
@@ -236,12 +197,6 @@ window.setCashReportDate = (value) => {
   reports();
 };
 
-async function pay(id) {
-  await API.put('/api/orders/' + id + '/pay', paymentBodyFromControls(id, 'cash'));
-  toast(txt('pedidos.pedidoPago', 'Pedido pago.'));
-  cash();
-}
-
 async function cancelOrder(id) {
   if (!confirm(txt('pedidos.confirmarCancelar', 'Cancelar pedido?'))) return;
   const cancelReason = prompt('Informe o motivo do cancelamento:', '') || '';
@@ -250,6 +205,5 @@ async function cancelOrder(id) {
   cash();
 }
 
-window.pay = pay;
 window.cancelOrder = cancelOrder;
 cash();

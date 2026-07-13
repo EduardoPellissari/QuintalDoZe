@@ -615,10 +615,20 @@ textarea {
 }
 
 .table-status-card {
+  display:block;
+  width:100%;
+  text-align:left;
   padding:16px;
   border-radius:18px;
   background:rgba(246,196,0,.09);
-  border:1px solid rgba(246,196,0,.18)
+  border:1px solid rgba(246,196,0,.18);
+  color:var(--txt)
+}
+
+.table-status-card.active {
+  background:linear-gradient(135deg,rgba(246,196,0,.28),rgba(255,223,87,.14));
+  border-color:rgba(246,196,0,.56);
+  box-shadow:0 14px 34px rgba(246,196,0,.12)
 }
 
 .table-status-card span {
@@ -641,6 +651,64 @@ textarea {
   margin-top:6px;
   color:var(--muted);
   font-weight:800
+}
+
+.table-checkout {
+  display:grid;
+  gap:14px
+}
+
+.table-checkout-head {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  padding:18px;
+  border-radius:22px;
+  background:linear-gradient(135deg,rgba(246,196,0,.16),rgba(255,255,255,.04));
+  border:1px solid rgba(246,196,0,.2)
+}
+
+.table-checkout-head span {
+  color:var(--muted);
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase
+}
+
+.table-checkout-head h3 {
+  margin:6px 0 4px;
+  color:var(--gold);
+  font-size:34px
+}
+
+.table-checkout-head p {
+  margin:0;
+  color:var(--muted);
+  font-weight:800
+}
+
+.table-checkout-head > b {
+  color:var(--gold);
+  font-size:28px;
+  white-space:nowrap
+}
+
+.table-checkout-orders {
+  display:grid;
+  gap:12px
+}
+
+.table-checkout-order {
+  padding:14px;
+  border-radius:18px;
+  background:rgba(255,255,255,.035);
+  border:1px solid rgba(255,255,255,.08)
+}
+
+.table-close-button {
+  width:100%;
+  min-height:54px
 }
 
 .payment-box {
