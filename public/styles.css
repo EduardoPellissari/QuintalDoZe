@@ -1107,6 +1107,50 @@ textarea {
   color:#70e09b
 }
 
+.item-detail-lines {
+  display:grid;
+  gap:6px;
+  margin-top:9px
+}
+
+.item-detail-lines-title {
+  color:var(--gold);
+  font-size:11px;
+  font-weight:950;
+  letter-spacing:.05em;
+  text-transform:uppercase
+}
+
+.item-detail-line {
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  padding:7px 9px;
+  border-radius:12px;
+  color:var(--txt);
+  background:rgba(246,196,0,.1);
+  border:1px solid rgba(246,196,0,.2);
+  font-size:13px;
+  font-weight:850;
+  line-height:1.32
+}
+
+.item-detail-line:before {
+  content:'';
+  flex:0 0 auto;
+  width:7px;
+  height:7px;
+  margin-top:5px;
+  border-radius:999px;
+  background:var(--gold);
+  box-shadow:0 0 0 3px rgba(246,196,0,.12)
+}
+
+.item-detail-line span {
+  min-width:0;
+  overflow-wrap:anywhere
+}
+
 .table-checkout .cart-line,
 .event-checkout-card .cart-line {
   align-items:flex-start
@@ -1463,6 +1507,10 @@ textarea {
   display:grid;
   gap:6px;
   margin-top:9px
+}
+
+.kitchen-items .item-detail-lines {
+  margin-top:10px
 }
 
 .kitchen-items .item-detail-chip {

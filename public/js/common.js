@@ -125,10 +125,37 @@ function itemLineTotal(item) {
   return itemUnitPrice(item) * Number(item?.qty || 1);
 }
 
+function itemNoteParts(note) {
+  return String(note || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 function itemDetailsHtml(item, options = {}) {
   const showExtraPrice = options.showExtraPrice !== false;
+  const noteParts = itemNoteParts(item?.note);
+
+  if (options.layout === 'list') {
+    const details = [
+      ...noteParts.map((note) => ({ type: 'note', value: htmlAttr(note) })),
+      showExtraPrice && itemExtraPrice(item) ? { type: 'extra', value: `${money(itemExtraPrice(item))} por un.` } : null,
+    ].filter(Boolean);
+
+    return details.length ? `
+      <span class="item-detail-list item-detail-lines">
+        <span class="item-detail-lines-title">Personalização</span>
+        ${details.map((detail) => `
+          <span class="item-detail-line ${detail.type}">
+            <span>${detail.value}</span>
+          </span>
+        `).join('')}
+      </span>
+    ` : '';
+  }
+
   const details = [
-    item?.note ? { type: 'note', label: 'Personalização', value: htmlAttr(item.note) } : null,
+    noteParts.length ? { type: 'note', label: 'Personalização', value: noteParts.map(htmlAttr).join('; ') } : null,
     showExtraPrice && itemExtraPrice(item) ? { type: 'extra', label: 'Acréscimo', value: `${money(itemExtraPrice(item))} por un.` } : null,
   ].filter(Boolean);
 

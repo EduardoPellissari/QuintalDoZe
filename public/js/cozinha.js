@@ -351,7 +351,7 @@ function card(order) {
         ${order.items.map((item) => `
           <li>
             <strong>${item.qty}x</strong>
-            <span>${htmlAttr(item.name)}${itemDetailsHtml(item, { showExtraPrice: false })}</span>
+            <span>${htmlAttr(item.name)}${itemDetailsHtml(item, { showExtraPrice: false, layout: 'list' })}</span>
           </li>
         `).join('')}
       </ul>
