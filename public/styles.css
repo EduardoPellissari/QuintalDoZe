@@ -785,12 +785,13 @@ textarea {
 
 .table-map-grid {
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(92px,1fr));
+  grid-template-columns:repeat(auto-fill,minmax(108px,1fr));
   gap:10px
 }
 
 .table-map-card {
   min-height:92px;
+  min-width:0;
   display:grid;
   align-content:center;
   gap:4px;
@@ -799,12 +800,34 @@ textarea {
   border-radius:18px;
   color:var(--txt);
   background:rgba(255,255,255,.045);
-  border:1px solid rgba(255,255,255,.09)
+  border:1px solid rgba(255,255,255,.09);
+  overflow:hidden
 }
 
-.table-map-card b {
+.table-map-name {
+  display:grid;
+  gap:2px;
+  min-width:0
+}
+
+.table-map-name b {
   color:var(--gold);
-  font-size:24px
+  font-size:clamp(18px,2.2vw,24px);
+  line-height:1.05;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap
+}
+
+.table-map-name em {
+  color:var(--gold2);
+  font-size:12px;
+  font-style:normal;
+  font-weight:950;
+  line-height:1.1;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap
 }
 
 .table-map-card span {

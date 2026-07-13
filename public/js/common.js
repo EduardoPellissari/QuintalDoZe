@@ -305,11 +305,33 @@ function tableMapPanel(openOrders, selectedTable, selectFunctionName) {
   const extras = groups.map((group) => group.table).filter((table) => !configured.includes(table));
   const tables = [...configured, ...extras];
 
+  const mapLabel = (table) => {
+    const value = String(table || '');
+    const eventMatch = value.match(/^evento\s+(.+)$/i);
+    if (eventMatch) {
+      const ref = eventMatch[1].trim();
+      return {
+        title: 'Evento',
+        detail: ref.length > 8 ? `#${ref.slice(-8)}` : ref ? `#${ref}` : '',
+      };
+    }
+
+    if (value.length > 12) {
+      return {
+        title: `${value.slice(0, 10)}...`,
+        detail: value,
+      };
+    }
+
+    return { title: value, detail: '' };
+  };
+
   return `
     <div class="table-map-grid">
       ${tables.map((table) => {
         const group = groupMap.get(table);
         const active = tableKey(selectedTable) === table;
+        const label = mapLabel(table);
         const status = !group
           ? { key: 'free', label: 'Livre' }
           : group.orders.every((order) => order.status === 'pronto')
@@ -322,9 +344,13 @@ function tableMapPanel(openOrders, selectedTable, selectFunctionName) {
           <button
             type="button"
             class="table-map-card status-${status.key} ${active ? 'active' : ''}"
+            title="${htmlAttr(table)}"
             ${group ? `onclick="${selectFunctionName}('${encodedTable(table)}')"` : ''}
           >
-            <b>${htmlAttr(table)}</b>
+            <span class="table-map-name">
+              <b>${htmlAttr(label.title)}</b>
+              ${label.detail ? `<em>${htmlAttr(label.detail)}</em>` : ''}
+            </span>
             <span>${status.label}</span>
             ${group ? `<small>${group.orders.length} pedido(s) • ${money(group.subtotal)}</small>` : '<small>Disponível</small>'}
           </button>
