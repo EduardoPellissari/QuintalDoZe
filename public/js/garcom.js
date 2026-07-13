@@ -398,7 +398,6 @@ function render() {
         <div class="waiter-menu-head">
           <div>
             <h3>${txt('garcom.cardapioTitulo', 'Cardápio')}</h3>
-            <p class="muted">${txt('garcom.cardapioDescricao', 'Escolha uma categoria para encontrar os itens com mais rapidez.')}</p>
           </div>
         </div>
 
@@ -423,9 +422,12 @@ function render() {
 
           <div id="tableSuggestions" class="table-picker"></div>
 
-          <label>${txt('garcom.observacoes', 'Observações')}
-            <textarea id="notes" placeholder="${txt('garcom.observacoesPlaceholder', 'Ex: sem cebola, ponto da carne...')}"></textarea>
-          </label>
+          <details class="operation-details order-note-details">
+            <summary class="operation-simple-summary">${txt('garcom.observacoes', 'Observações')} gerais do pedido</summary>
+            <label>${txt('garcom.observacoes', 'Observações')}
+              <textarea id="notes" placeholder="${txt('garcom.observacoesPlaceholder', 'Ex: entregar junto, pedido com pressa...')}"></textarea>
+            </label>
+          </details>
 
           <div id="cart"></div>
 

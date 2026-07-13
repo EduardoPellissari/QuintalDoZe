@@ -68,12 +68,6 @@ async function renderUsers() {
   const users = await API.get('/api/users');
 
   content.innerHTML = `
-    <section class="dashboard-cards">
-      <div class="dash-card"><b>${users.length}</b><span>${txt('admin.usuarios.cardUsuarios', 'Usuários cadastrados')}</span></div>
-      <div class="dash-card"><b>4</b><span>${txt('admin.usuarios.cardPerfis', 'Perfis do sistema')}</span></div>
-      <div class="dash-card"><b>ON</b><span>${txt('admin.usuarios.cardServidor', 'Servidor')}</span></div>
-    </section>
-
     <div class="admin-layout admin-users">
       <section class="panel admin-form-large">
         <div class="admin-form-head">

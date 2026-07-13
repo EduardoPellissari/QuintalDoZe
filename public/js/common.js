@@ -726,27 +726,29 @@ function cashSessionPanel(info, scope) {
 
   if (!current) {
     return `
-      <section class="panel cash-session-panel">
-        <div class="admin-form-head">
+      <details class="panel cash-session-panel operation-details">
+        <summary class="operation-summary">
           <div>
-            <h3>Fechamento de caixa do dia</h3>
-            <p>Abra o caixa para controlar dinheiro inicial, sangrias, suprimentos e fechamento.</p>
+            <h3>Controle do caixa</h3>
+            <p>Abra o caixa, registre sangria/suprimento e feche o dia quando precisar.</p>
           </div>
           <span class="badge warn">Caixa fechado</span>
-        </div>
+        </summary>
 
-        <div class="cash-session-grid">
-          <label>Dinheiro inicial
-            <input id="${scope}CashOpening" type="number" min="0" step="0.01" placeholder="Ex: 200.00">
-          </label>
-          <label>Observação
-            <input id="${scope}CashOpeningNote" placeholder="Opcional">
-          </label>
-          <button class="primary" type="button" onclick="openCashSession('${scope}')">Abrir caixa</button>
-        </div>
+        <div class="operation-details-body">
+          <div class="cash-session-grid">
+            <label>Dinheiro inicial
+              <input id="${scope}CashOpening" type="number" min="0" step="0.01" placeholder="Ex: 200.00">
+            </label>
+            <label>Observação
+              <input id="${scope}CashOpeningNote" placeholder="Opcional">
+            </label>
+            <button class="primary" type="button" onclick="openCashSession('${scope}')">Abrir caixa</button>
+          </div>
 
-        ${recent.length ? `<p class="table-picker-note">Último caixa: ${recent[0].status === 'closed' ? 'fechado' : 'aberto'} em ${dateTime(recent[0].openedAt)}</p>` : ''}
-      </section>
+          ${recent.length ? `<p class="table-picker-note">Último caixa: ${recent[0].status === 'closed' ? 'fechado' : 'aberto'} em ${dateTime(recent[0].openedAt)}</p>` : ''}
+        </div>
+      </details>
     `;
   }
 
@@ -755,50 +757,50 @@ function cashSessionPanel(info, scope) {
   const withdrawals = entries.filter((entry) => entry.type === 'sangria').reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
 
   return `
-    <section class="panel cash-session-panel">
-      <div class="admin-form-head">
+    <details class="panel cash-session-panel operation-details">
+      <summary class="operation-summary">
         <div>
-          <h3>Caixa aberto</h3>
-          <p>Aberto em ${dateTime(current.openedAt)}. Registre movimentações e feche no fim do expediente.</p>
+          <h3>Controle do caixa</h3>
+          <p>Aberto em ${dateTime(current.openedAt)}. Use somente para sangria, suprimento ou fechamento do dia.</p>
         </div>
         <span class="badge ok">Aberto</span>
-      </div>
+      </summary>
 
-      <div class="grid g4">
-        <div class="metric"><span>Dinheiro inicial</span><b>${money(current.openingAmount)}</b></div>
-        <div class="metric"><span>Suprimentos</span><b>${money(supplies)}</b></div>
-        <div class="metric"><span>Sangrias</span><b>${money(withdrawals)}</b></div>
-        <div class="metric"><span>Movimentações</span><b>${entries.length}</b></div>
-      </div>
+      <div class="operation-details-body">
+        <div class="grid g4">
+          <div class="metric"><span>Dinheiro inicial</span><b>${money(current.openingAmount)}</b></div>
+          <div class="metric"><span>Suprimentos</span><b>${money(supplies)}</b></div>
+          <div class="metric"><span>Sangrias</span><b>${money(withdrawals)}</b></div>
+          <div class="metric"><span>Movimentações</span><b>${entries.length}</b></div>
+        </div>
 
-      <p class="table-picker-note">No fechamento, o dinheiro esperado considera dinheiro inicial + vendas em Dinheiro + suprimentos - sangrias. Pagamento misto fica no relatório, mas não entra no dinheiro contado automaticamente.</p>
+        <div class="cash-session-grid" style="margin-top:14px">
+          <label>Tipo
+            <select id="${scope}CashEntryType">
+              <option value="suprimento">Suprimento</option>
+              <option value="sangria">Sangria</option>
+            </select>
+          </label>
+          <label>Valor
+            <input id="${scope}CashEntryAmount" type="number" min="0" step="0.01" placeholder="Ex: 50.00">
+          </label>
+          <label>Motivo
+            <input id="${scope}CashEntryNote" placeholder="Opcional">
+          </label>
+          <button class="soft" type="button" onclick="addCashSessionEntry('${scope}')">Registrar</button>
+        </div>
 
-      <div class="cash-session-grid" style="margin-top:14px">
-        <label>Tipo
-          <select id="${scope}CashEntryType">
-            <option value="suprimento">Suprimento</option>
-            <option value="sangria">Sangria</option>
-          </select>
-        </label>
-        <label>Valor
-          <input id="${scope}CashEntryAmount" type="number" min="0" step="0.01" placeholder="Ex: 50.00">
-        </label>
-        <label>Motivo
-          <input id="${scope}CashEntryNote" placeholder="Opcional">
-        </label>
-        <button class="soft" type="button" onclick="addCashSessionEntry('${scope}')">Registrar</button>
+        <div class="cash-session-grid" style="margin-top:14px">
+          <label>Dinheiro contado no caixa
+            <input id="${scope}CashCounted" type="number" min="0" step="0.01" placeholder="Valor contado">
+          </label>
+          <label>Observação de fechamento
+            <input id="${scope}CashCloseNote" placeholder="Opcional">
+          </label>
+          <button class="danger" type="button" onclick="closeCashSession('${scope}')">Fechar caixa</button>
+        </div>
       </div>
-
-      <div class="cash-session-grid" style="margin-top:14px">
-        <label>Dinheiro contado no caixa
-          <input id="${scope}CashCounted" type="number" min="0" step="0.01" placeholder="Valor contado">
-        </label>
-        <label>Observação de fechamento
-          <input id="${scope}CashCloseNote" placeholder="Opcional">
-        </label>
-        <button class="danger" type="button" onclick="closeCashSession('${scope}')">Fechar caixa</button>
-      </div>
-    </section>
+    </details>
   `;
 }
 

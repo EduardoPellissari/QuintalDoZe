@@ -15,6 +15,7 @@ setText('pageSub', txt('cozinha.subtitulo', 'Acompanhe e atualize o preparo dos 
 let lastIds = new Set();
 let soundEnabled = false;
 let urgentNotifiedIds = new Set();
+let kitchenOptionsOpen = false;
 
 function playTone(frequency = 880, duration = 180, volume = 0.08) {
   if (!soundEnabled) return;
@@ -170,18 +171,18 @@ async function render() {
     <section class="kitchen-dashboard kitchen-pro-dashboard">
       <div class="kitchen-pro-header">
         <div>
-          <span class="kitchen-live-pill">
-            <span class="dot"></span>
-            ${txt('cozinha.painelAoVivo', 'Painel ao vivo')}
-          </span>
           <h2>${txt('cozinha.painelTitulo', 'Painel da cozinha')}</h2>
-          <p class="muted">${txt('cozinha.atualizacao', 'Contador ao vivo com prioridade automática por tempo.')}</p>
         </div>
 
         <div class="kitchen-toolbar-actions">
           <button class="soft" id="soundBtn">${soundEnabled ? txt('cozinha.somAtivo', 'Som ativo') : txt('cozinha.ativarSom', 'Ativar som')}</button>
-          <button class="soft" id="notBtn">${txt('cozinha.permitirNotificacao', 'Permitir notificação')}</button>
-          <button class="soft danger-outline" id="closeDayBtn">Encerrar dia</button>
+          <details class="operation-menu" id="kitchenOptions" ${kitchenOptionsOpen ? 'open' : ''}>
+            <summary>Mais opções</summary>
+            <div>
+              <button class="soft" id="notBtn">${txt('cozinha.permitirNotificacao', 'Permitir notificação')}</button>
+              <button class="soft danger-outline" id="closeDayBtn">Encerrar dia</button>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -234,11 +235,19 @@ async function render() {
     render();
   };
 
-  document.getElementById('notBtn').onclick = () => {
-    if ('Notification' in window) Notification.requestPermission();
-  };
+  document.getElementById('kitchenOptions')?.addEventListener('toggle', (event) => {
+    kitchenOptionsOpen = event.currentTarget.open;
+  });
 
-  document.getElementById('closeDayBtn').onclick = closeKitchenDay;
+  const notificationButton = document.getElementById('notBtn');
+  if (notificationButton) {
+    notificationButton.onclick = () => {
+      if ('Notification' in window) Notification.requestPermission();
+    };
+  }
+
+  const closeDayButton = document.getElementById('closeDayBtn');
+  if (closeDayButton) closeDayButton.onclick = closeKitchenDay;
 }
 
 function emptyColumn(message) {

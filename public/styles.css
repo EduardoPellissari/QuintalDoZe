@@ -2776,8 +2776,7 @@ html:not(.mobile-layout) .topbar h2 {
 }
 
 html:not(.mobile-layout) .topbar p {
-  margin-top: 2px;
-  font-size: 13px;
+  display: none;
 }
 
 html:not(.mobile-layout) .grid {
@@ -3011,6 +3010,119 @@ html:not(.mobile-layout) .cash-session-grid .danger {
   min-height: 44px;
 }
 
+html:not(.mobile-layout) .operation-details {
+  margin-bottom: 12px;
+}
+
+.operation-details > summary,
+.operation-simple-summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.operation-details > summary::-webkit-details-marker,
+.operation-simple-summary::-webkit-details-marker,
+.operation-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.operation-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.operation-summary h3,
+.operation-summary p {
+  margin: 0;
+}
+
+.operation-summary p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.operation-summary:after,
+.operation-simple-summary:after {
+  content: 'Abrir';
+  flex: 0 0 auto;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.operation-details[open] > .operation-summary:after,
+.operation-details[open] > .operation-simple-summary:after {
+  content: 'Fechar';
+}
+
+.operation-details-body {
+  margin-top: 12px;
+}
+
+.operation-simple-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: var(--txt);
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.08);
+  font-weight: 900;
+}
+
+.order-note-details {
+  margin-top: 10px;
+}
+
+.order-note-details label {
+  margin-top: 10px;
+}
+
+.operation-menu {
+  position: relative;
+}
+
+.operation-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  color: var(--txt);
+  background: #272727;
+  border: 1px solid #3c3c3c;
+  font-weight: 850;
+}
+
+.operation-menu > div {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  min-width: 220px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #151515;
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 18px 55px rgba(0,0,0,.42);
+}
+
+.operation-menu button {
+  width: 100%;
+  margin: 0;
+  text-align: left;
+}
+
 html:not(.mobile-layout) .waiter-order-panel {
   position: sticky;
   top: 16px;
@@ -3046,7 +3158,7 @@ html:not(.mobile-layout) .menu-product-card {
 }
 
 html:not(.mobile-layout) .menu-product-card p {
-  display: -webkit-box;
+  display: none;
   min-height: 0;
   margin: 8px 0;
   overflow: hidden;
