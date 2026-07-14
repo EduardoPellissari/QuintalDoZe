@@ -1030,8 +1030,7 @@ function quoteCard(quote) {
 
       <div class="actions" style="margin-top:12px">
         <button class="soft" onclick="editQuote(${quote.id})">Editar</button>
-        <button class="soft" onclick="printQuote(${quote.id})">Gerar PDF</button>
-        <button class="soft whatsapp-action" onclick="sendQuoteWhatsapp(${quote.id})">WhatsApp + PDF</button>
+        <button class="soft whatsapp-action" onclick="sendQuoteWhatsapp(${quote.id})">WhatsApp</button>
         ${quote.convertedOrderId ? `<span class="badge ok">Pedido #${quote.convertedOrderId}</span>` : `<button class="primary compact-action" onclick="approveQuote(${quote.id})">Aprovar e enviar</button>`}
         <button class="danger" onclick="deleteQuote(${quote.id})">Excluir</button>
       </div>
@@ -1051,45 +1050,8 @@ function quotePdfUrl(id, download = false) {
 }
 
 function quoteWhatsappMessage(quote) {
-  const lines = [
-    `Olá, ${quote.clientName}! Tudo bem?`,
-    '',
-    'Preparamos o orçamento do Quintal do Zé com carinho. Segue o resumo e o PDF da proposta para você conferir:',
-    `Evento: ${quote.eventType || '-'}`,
-    quote.eventDate ? `Data: ${quoteDate(quote.eventDate)}` : '',
-    quote.eventTime ? `Horário: ${quote.eventTime}` : '',
-    quote.guests ? `Pessoas: ${quote.guests}` : '',
-    quote.location ? `Local: ${quote.location}` : '',
-    '',
-    'Itens:',
-    ...(quote.items || []).map((item) => `- ${Number(item.qty || 0)}x ${item.description} (${money(Number(item.qty || 0) * Number(item.unitPrice || 0))})`),
-    '',
-    `Total: ${money(quote.total)}`,
-    '',
-    'Qualquer ajuste que precisar, é só nos chamar por aqui. Se estiver tudo certo, podemos confirmar por esta conversa.',
-  ];
-
-  return lines.filter((line) => line !== '').join('\n');
-}
-
-async function shareQuotePdfFile(quote, message) {
-  if (!navigator.share || !navigator.canShare || typeof File === 'undefined') return false;
-
-  const response = await fetch(quotePdfUrl(quote.id));
-  if (!response.ok) return false;
-
-  const blob = await response.blob();
-  const file = new File([blob], `orcamento-quintal-do-ze-${quote.id}.pdf`, { type: 'application/pdf' });
-  const shareData = {
-    title: `Orçamento Quintal do Zé #${quote.id}`,
-    text: message,
-    files: [file],
-  };
-
-  if (!navigator.canShare(shareData)) return false;
-
-  await navigator.share(shareData);
-  return true;
+  const clientName = String(quote.clientName || '').trim() || 'tudo bem';
+  return `Bom dia, ${clientName}! Segue seu orçamento do seu almoço.`;
 }
 
 function openQuotePdfTab(quote) {
@@ -1105,14 +1067,6 @@ window.sendQuoteWhatsapp = async (id) => {
 
   const message = quoteWhatsappMessage(quote);
   const phoneUrl = whatsappPhoneUrl(quote.phone);
-
-  try {
-    const shared = await shareQuotePdfFile(quote, message);
-    if (shared) return toast('PDF preparado para compartilhar.');
-  } catch (err) {
-    if (err?.name === 'AbortError') return toast('Compartilhamento cancelado.');
-    console.warn('Nao foi possivel compartilhar o PDF diretamente.', err);
-  }
 
   openQuotePdfTab(quote);
   const copied = await copyText(message).catch(() => false);
