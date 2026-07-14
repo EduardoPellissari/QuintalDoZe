@@ -500,7 +500,10 @@ nav {
 nav button,
 nav a {
   width:100%;
-  display:block;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
   text-decoration:none;
   text-align:left;
   background:transparent;
@@ -518,6 +521,31 @@ nav a:hover {
   background:transparent;
   color:var(--gold);
   border-color:#717171
+}
+
+.nav-count-badge {
+  min-width:24px;
+  height:24px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:0 7px;
+  color:#151515;
+  background:linear-gradient(135deg,var(--gold),var(--gold2));
+  font-size:12px;
+  font-weight:950;
+  box-shadow:0 10px 24px rgba(246,196,0,.22)
+}
+
+.nav-count-badge[hidden] {
+  display:none
+}
+
+.nav-count-badge.blue {
+  color:#061829;
+  background:linear-gradient(135deg,#66b7ff,#9dd5ff);
+  box-shadow:0 10px 24px rgba(102,183,255,.16)
 }
 
 .ghost,
@@ -841,6 +869,50 @@ textarea {
   border-radius:22px;
   background:rgba(255,255,255,.055);
   border:1px solid rgba(255,255,255,.1)
+}
+
+.cash-filter-bar {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin:0 0 12px
+}
+
+.cash-filter-bar button {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-height:42px;
+  padding:9px 12px;
+  color:var(--txt);
+  background:rgba(255,255,255,.055);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:999px
+}
+
+.cash-filter-bar button.active {
+  color:#151515;
+  background:linear-gradient(135deg,var(--gold),var(--gold2));
+  border-color:transparent;
+  box-shadow:0 12px 26px rgba(246,196,0,.18)
+}
+
+.cash-filter-bar b {
+  min-width:23px;
+  height:23px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  color:var(--gold);
+  background:rgba(0,0,0,.30);
+  font-size:12px;
+  font-weight:950
+}
+
+.cash-filter-bar button.active b {
+  color:#151515;
+  background:rgba(255,255,255,.42)
 }
 
 .dash-card b {

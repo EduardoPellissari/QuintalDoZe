@@ -33,6 +33,8 @@ let selectedAdminCashTable = '';
 let activeAdminTab = 'users';
 let adminCashLastSignature = '';
 let adminCashAutoRefreshing = false;
+let adminCashKnownOrderIds = new Set();
+let adminCashFilter = 'all';
 
 const quoteTypes = ['Café da tarde', 'Happy hour', 'Coffee break', 'Almoço/Jantar', 'Evento personalizado'];
 const quoteStatuses = [
@@ -159,6 +161,28 @@ function renderEmbeddedAdminPage(key) {
   `;
 
   document.getElementById('adminEmbeddedShell').appendChild(frame);
+}
+
+function updateAdminNavCounters(snapshot = null) {
+  const applyCounters = (orders) => {
+    const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
+    const eventOrders = openOrders.filter(isEventOrder);
+    const restaurantOrders = openOrders.filter((order) => !isEventOrder(order));
+    const kitchenOrders = restaurantOrders.filter((order) => ['pendente', 'preparando'].includes(order.status));
+
+    setNavBadge('orders', restaurantOrders.length, restaurantOrders.length ? 'warn' : '');
+    setNavBadge('kitchen', kitchenOrders.length, kitchenOrders.length ? 'blue' : '');
+    setNavBadge('cash', openOrders.length, openOrders.length ? 'warn' : '');
+  };
+
+  if (snapshot?.openOrders) {
+    applyCounters(snapshot.openOrders);
+    return Promise.resolve();
+  }
+
+  return API.get('/api/orders')
+    .then(applyCounters)
+    .catch((err) => console.warn('Nao foi possivel atualizar contadores do admin.', err));
 }
 
 async function renderUsers() {
@@ -1112,19 +1136,25 @@ async function renderCash(snapshot = null) {
 
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
   adminCashLastSignature = cashOpenOrdersSignature(openOrders, cashInfo);
+  adminCashKnownOrderIds = cashOrderIds(openOrders);
   const eventOrders = openOrders.filter(isEventOrder);
   const restaurantOrders = openOrders.filter((order) => !isEventOrder(order));
-  const groups = groupOrdersByTable(restaurantOrders);
+  const filteredRestaurantOrders = filterRestaurantOrdersForCash(restaurantOrders, adminCashFilter);
+  const groups = groupOrdersByTable(filteredRestaurantOrders);
   if (!selectedAdminCashTable || !groups.some((group) => group.table === selectedAdminCashTable)) {
     selectedAdminCashTable = groups[0]?.table || '';
   }
 
   const readyOrders = openOrders.filter((order) => order.status === 'pronto').length;
-  const restaurantTotalOpen = groups.reduce((sum, group) => sum + group.subtotal, 0);
+  const filterCounts = cashFilterCounts(restaurantOrders, eventOrders);
+  const allRestaurantGroups = groupOrdersByTable(restaurantOrders);
+  const restaurantTotalOpen = allRestaurantGroups.reduce((sum, group) => sum + group.subtotal, 0);
   const eventTotalOpen = eventOrders.reduce((sum, order) => sum + orderSubtotal(order), 0);
   const totalOpen = restaurantTotalOpen + eventTotalOpen;
-  const occupiedTables = groups.length;
-  const eventsPanel = eventOrders.length ? `
+  const occupiedTables = allRestaurantGroups.length;
+  const showEventsPanel = adminCashFilter === 'all' || adminCashFilter === 'events';
+  const showRestaurantPanel = adminCashFilter !== 'events';
+  const eventsPanel = showEventsPanel && (eventOrders.length || adminCashFilter === 'events') ? `
     <section class="panel operation-panel">
       <div class="admin-form-head">
         <div>
@@ -1138,18 +1168,7 @@ async function renderCash(snapshot = null) {
     </section>
   ` : '';
 
-  content.innerHTML = `
-    <section class="dashboard-cards operation-cards">
-      <div class="dash-card"><b>${openOrders.length}</b><span>${txt('admin.caixa.cardAbertos', 'Pedidos em aberto')}</span></div>
-      <div class="dash-card"><b>${readyOrders}</b><span>${txt('admin.caixa.cardProntos', 'Prontos para fechar')}</span></div>
-      <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
-      <div class="dash-card"><b>${eventOrders.length}</b><span>Eventos no caixa</span></div>
-      <div class="dash-card"><b>${money(totalOpen)}</b><span>${txt('admin.caixa.cardTotal', 'Total em aberto')}</span></div>
-    </section>
-
-    ${cashSessionPanel(cashInfo, 'adminCash')}
-    ${eventsPanel}
-
+  const restaurantPanel = showRestaurantPanel ? `
     <section class="panel operation-panel cash-fast-panel">
       <div class="admin-form-head compact-head">
         <div>
@@ -1164,19 +1183,35 @@ async function renderCash(snapshot = null) {
           <div class="cash-block">
             <div class="section-mini-head">
               <h4>Mapa das mesas</h4>
-              <span>${occupiedTables} ocupada(s)</span>
+              <span>${groups.length} exibida(s)</span>
             </div>
-            ${tableMapPanel(restaurantOrders, selectedAdminCashTable, 'selectAdminCashTable', { includeFreeTables: false })}
+            ${tableMapPanel(filteredRestaurantOrders, selectedAdminCashTable, 'selectAdminCashTable', { includeFreeTables: false })}
           </div>
         </div>
 
         <div class="cash-workspace-right">
-          ${tableCheckoutPanel(restaurantOrders, selectedAdminCashTable, 'admin', 'closeAdminTable', 'adminCancelOrder', 'transferAdminTable')}
+          ${tableCheckoutPanel(filteredRestaurantOrders, selectedAdminCashTable, 'admin', 'closeAdminTable', 'adminCancelOrder', 'transferAdminTable')}
         </div>
       </div>
     </section>
+  ` : '';
+
+  content.innerHTML = `
+    <section class="dashboard-cards operation-cards">
+      <div class="dash-card"><b>${openOrders.length}</b><span>${txt('admin.caixa.cardAbertos', 'Pedidos em aberto')}</span></div>
+      <div class="dash-card"><b>${readyOrders}</b><span>${txt('admin.caixa.cardProntos', 'Prontos para fechar')}</span></div>
+      <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
+      <div class="dash-card"><b>${eventOrders.length}</b><span>Eventos no caixa</span></div>
+      <div class="dash-card"><b>${money(totalOpen)}</b><span>${txt('admin.caixa.cardTotal', 'Total em aberto')}</span></div>
+    </section>
+
+    ${cashFilterBar(adminCashFilter, filterCounts, 'setAdminCashFilter')}
+    ${cashSessionPanel(cashInfo, 'adminCash')}
+    ${eventsPanel}
+    ${restaurantPanel}
   `;
 
+  updateAdminNavCounters({ openOrders, restaurantOrders, eventOrders });
   bindPaymentControls('admin');
 }
 
@@ -1200,6 +1235,8 @@ async function refreshAdminCashIfChanged() {
     const nextSignature = cashOpenOrdersSignature(openOrders, cashInfo);
 
     if (nextSignature !== adminCashLastSignature) {
+      const newOrderCount = countNewCashOrders(openOrders, adminCashKnownOrderIds);
+      if (newOrderCount) notifyCashNewOrders(newOrderCount);
       await renderCash({ orders, cashInfo });
     }
   } catch (err) {
@@ -1211,6 +1248,12 @@ async function refreshAdminCashIfChanged() {
 
 window.selectAdminCashTable = (encoded) => {
   selectedAdminCashTable = decodedTable(encoded);
+  renderCash();
+};
+
+window.setAdminCashFilter = (filter) => {
+  adminCashFilter = filter || 'all';
+  selectedAdminCashTable = '';
   renderCash();
 };
 
@@ -1387,4 +1430,6 @@ window.adminCancelOrder = async (id) => {
 
 renderUsers();
 preloadEmbeddedAdminPages();
+updateAdminNavCounters();
 setInterval(refreshAdminCashIfChanged, 4000);
+setInterval(updateAdminNavCounters, 6000);

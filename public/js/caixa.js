@@ -22,6 +22,8 @@ let selectedCashTable = '';
 let activeCashTab = 'cash';
 let cashLastSignature = '';
 let cashAutoRefreshing = false;
+let cashKnownOrderIds = new Set();
+let cashFilter = 'all';
 
 document.getElementById('sideNav').addEventListener('click', (event) => {
   const button = event.target.closest('button[data-tab]');
@@ -51,18 +53,23 @@ async function cash(snapshot = null) {
 
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
   cashLastSignature = cashOpenOrdersSignature(openOrders, cashInfo);
+  cashKnownOrderIds = cashOrderIds(openOrders);
   const eventOrders = openOrders.filter(isEventOrder);
   const restaurantOrders = openOrders.filter((order) => !isEventOrder(order));
-  const groups = groupOrdersByTable(restaurantOrders);
+  const filteredRestaurantOrders = filterRestaurantOrdersForCash(restaurantOrders, cashFilter);
+  const groups = groupOrdersByTable(filteredRestaurantOrders);
   if (!selectedCashTable || !groups.some((group) => group.table === selectedCashTable)) {
     selectedCashTable = groups[0]?.table || '';
   }
 
-  const occupiedTables = groups.length;
-  const restaurantTotalOpen = groups.reduce((sum, group) => sum + group.subtotal, 0);
+  const occupiedTables = groupOrdersByTable(restaurantOrders).length;
+  const filterCounts = cashFilterCounts(restaurantOrders, eventOrders);
+  const restaurantTotalOpen = groupOrdersByTable(restaurantOrders).reduce((sum, group) => sum + group.subtotal, 0);
   const eventTotalOpen = eventOrders.reduce((sum, order) => sum + orderSubtotal(order), 0);
   const totalOpen = restaurantTotalOpen + eventTotalOpen;
-  const eventsPanel = eventOrders.length ? `
+  const showEventsPanel = cashFilter === 'all' || cashFilter === 'events';
+  const showRestaurantPanel = cashFilter !== 'events';
+  const eventsPanel = showEventsPanel && (eventOrders.length || cashFilter === 'events') ? `
     <section class="panel operation-panel">
       <div class="admin-form-head">
         <div>
@@ -76,17 +83,7 @@ async function cash(snapshot = null) {
     </section>
   ` : '';
 
-  document.getElementById('content').innerHTML = `
-    <section class="dashboard-cards operation-cards">
-      <div class="dash-card"><b>${openOrders.length}</b><span>Pedidos em aberto</span></div>
-      <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
-      <div class="dash-card"><b>${eventOrders.length}</b><span>Eventos no caixa</span></div>
-      <div class="dash-card"><b>${money(totalOpen)}</b><span>Total em aberto</span></div>
-    </section>
-
-    ${cashSessionPanel(cashInfo, 'cash')}
-    ${eventsPanel}
-
+  const restaurantPanel = showRestaurantPanel ? `
     <section class="panel operation-panel cash-fast-panel">
       <div class="admin-form-head compact-head">
         <div>
@@ -101,19 +98,34 @@ async function cash(snapshot = null) {
           <div class="cash-block">
             <div class="section-mini-head">
               <h4>Mapa das mesas</h4>
-              <span>${occupiedTables} ocupada(s)</span>
+              <span>${groups.length} exibida(s)</span>
             </div>
-            ${tableMapPanel(restaurantOrders, selectedCashTable, 'selectCashTable', { includeFreeTables: false })}
+            ${tableMapPanel(filteredRestaurantOrders, selectedCashTable, 'selectCashTable', { includeFreeTables: false })}
           </div>
         </div>
 
         <div class="cash-workspace-right">
-          ${tableCheckoutPanel(restaurantOrders, selectedCashTable, 'cash', 'closeCashTable', 'cancelOrder', 'transferCashTable')}
+          ${tableCheckoutPanel(filteredRestaurantOrders, selectedCashTable, 'cash', 'closeCashTable', 'cancelOrder', 'transferCashTable')}
         </div>
       </div>
     </section>
+  ` : '';
+
+  document.getElementById('content').innerHTML = `
+    <section class="dashboard-cards operation-cards">
+      <div class="dash-card"><b>${openOrders.length}</b><span>Pedidos em aberto</span></div>
+      <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
+      <div class="dash-card"><b>${eventOrders.length}</b><span>Eventos no caixa</span></div>
+      <div class="dash-card"><b>${money(totalOpen)}</b><span>Total em aberto</span></div>
+    </section>
+
+    ${cashFilterBar(cashFilter, filterCounts, 'setCashFilter')}
+    ${cashSessionPanel(cashInfo, 'cash')}
+    ${eventsPanel}
+    ${restaurantPanel}
   `;
 
+  setNavBadge('cash', openOrders.length, openOrders.length ? 'warn' : '');
   bindPaymentControls('cash');
 }
 
@@ -137,6 +149,8 @@ async function refreshCashIfChanged() {
     const nextSignature = cashOpenOrdersSignature(openOrders, cashInfo);
 
     if (nextSignature !== cashLastSignature) {
+      const newOrderCount = countNewCashOrders(openOrders, cashKnownOrderIds);
+      if (newOrderCount) notifyCashNewOrders(newOrderCount);
       await cash({ orders, cashInfo });
     }
   } catch (err) {
@@ -148,6 +162,12 @@ async function refreshCashIfChanged() {
 
 window.selectCashTable = (encoded) => {
   selectedCashTable = decodedTable(encoded);
+  cash();
+};
+
+window.setCashFilter = (filter) => {
+  cashFilter = filter || 'all';
+  selectedCashTable = '';
   cash();
 };
 

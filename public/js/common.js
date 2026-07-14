@@ -217,10 +217,116 @@ function cashOpenOrdersSignature(openOrders, cashInfo = {}) {
   });
 }
 
+function cashOrderIds(openOrders) {
+  return new Set((openOrders || []).map((order) => String(order.id)));
+}
+
+function countNewCashOrders(openOrders, knownIds) {
+  if (!knownIds || !knownIds.size) return 0;
+  return (openOrders || []).filter((order) => !knownIds.has(String(order.id))).length;
+}
+
+function playCashAlertTone() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const context = new AudioContextClass();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.frequency.value = 740;
+    gain.gain.value = 0.055;
+    oscillator.start();
+
+    setTimeout(() => {
+      oscillator.stop();
+      context.close();
+    }, 150);
+  } catch (err) {
+    console.warn('Nao foi possivel tocar alerta do caixa.', err);
+  }
+}
+
+function notifyCashNewOrders(count = 1) {
+  const message = count > 1 ? `${count} novas comandas no caixa.` : 'Nova comanda no caixa.';
+  toast(message);
+  playCashAlertTone();
+}
+
 function isEditingFormField(root = document) {
   const active = document.activeElement;
   if (!active || !root.contains(active)) return false;
   return ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable;
+}
+
+function cashFilterCounts(restaurantOrders, eventOrders) {
+  const groups = groupOrdersByTable(restaurantOrders);
+  const readyTables = groups.filter((group) => group.orders.every((order) => order.status === 'pronto')).length;
+  const kitchenTables = groups.filter((group) => group.orders.some((order) => ['pendente', 'preparando'].includes(order.status))).length;
+
+  return {
+    all: groups.length + eventOrders.length,
+    ready: readyTables,
+    kitchen: kitchenTables,
+    events: eventOrders.length,
+  };
+}
+
+function filterRestaurantOrdersForCash(restaurantOrders, filter) {
+  if (filter === 'events') return [];
+  if (filter === 'all') return restaurantOrders;
+
+  const groups = groupOrdersByTable(restaurantOrders);
+  const filteredGroups = groups.filter((group) => {
+    if (filter === 'ready') return group.orders.every((order) => order.status === 'pronto');
+    if (filter === 'kitchen') return group.orders.some((order) => ['pendente', 'preparando'].includes(order.status));
+    return true;
+  });
+
+  return filteredGroups.flatMap((group) => group.orders);
+}
+
+function cashFilterBar(activeFilter, counts, handlerName) {
+  const filters = [
+    { value: 'all', label: 'Todas' },
+    { value: 'ready', label: 'Prontas' },
+    { value: 'kitchen', label: 'Em cozinha' },
+    { value: 'events', label: 'Eventos' },
+  ];
+
+  return `
+    <div class="cash-filter-bar">
+      ${filters.map((filter) => `
+        <button
+          type="button"
+          class="${activeFilter === filter.value ? 'active' : ''}"
+          onclick="${handlerName}('${filter.value}')"
+        >
+          <span>${filter.label}</span>
+          <b>${counts[filter.value] || 0}</b>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+
+function setNavBadge(tab, count, tone = '') {
+  const item = document.querySelector(`#sideNav [data-tab="${tab}"]`);
+  if (!item) return;
+
+  let badge = item.querySelector('.nav-count-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'nav-count-badge';
+    item.appendChild(badge);
+  }
+
+  badge.className = `nav-count-badge ${tone}`.trim();
+  badge.textContent = count;
+  badge.hidden = !count;
 }
 
 function paymentFieldId(id, scope, field) {
@@ -490,6 +596,16 @@ function tableMapPanel(openOrders, selectedTable, selectFunctionName, options = 
         const active = tableKey(selectedTable) === table;
         const label = mapLabel(table);
         const status = statusForGroup(group);
+        const readyCount = group ? group.orders.filter((order) => order.status === 'pronto').length : 0;
+        const kitchenCount = group ? group.orders.filter((order) => ['pendente', 'preparando'].includes(order.status)).length : 0;
+        const summary = group
+          ? [
+            `${group.orders.length} pedido(s)`,
+            readyCount ? `${readyCount} pronto(s)` : '',
+            kitchenCount ? `${kitchenCount} cozinha` : '',
+            money(group.subtotal),
+          ].filter(Boolean).join(' • ')
+          : 'Disponível';
 
         return `
           <button
@@ -503,7 +619,7 @@ function tableMapPanel(openOrders, selectedTable, selectFunctionName, options = 
               ${label.detail ? `<em>${htmlAttr(label.detail)}</em>` : ''}
             </span>
             <span>${status.label}</span>
-            ${group ? `<small>${group.orders.length} pedido(s) • ${money(group.subtotal)}</small>` : '<small>Disponível</small>'}
+            <small>${summary}</small>
           </button>
         `;
       }).join('')}
