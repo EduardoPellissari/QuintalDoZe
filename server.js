@@ -521,13 +521,20 @@ function quoteBody(body, existingQuote = null) {
       guests: Number(body.guests || 0),
       location: String(body.location || '').trim(),
       notes: String(body.notes || '').trim(),
+      validUntil: String(body.validUntil || '').trim(),
+      commercialNotes: String(body.commercialNotes || '').trim(),
       status: String(body.status || existingQuote?.status || 'rascunho'),
       items,
       total: quoteTotal(items),
+      convertedOrderId: existingQuote?.convertedOrderId || null,
       createdAt: existingQuote?.createdAt || now,
       updatedAt: now
     }
   };
+}
+
+function defaultCommercialNotes() {
+  return 'Valores sujeitos à disponibilidade. Entrega, montagem e itens extras serão considerados conforme combinado na proposta.';
 }
 
 function moneyBR(value) {
@@ -643,7 +650,7 @@ function drawQuotePdf(quote, stream) {
     ['Cliente', quote.clientName || '-'],
     ['Contato', quote.phone || '-'],
     ['Evento', quote.eventType || '-'],
-    ['Status', quote.status || 'rascunho'],
+    ['Validade', quoteDateBR(quote.validUntil)],
     ['Data', quoteDateBR(quote.eventDate)],
     ['Horário', quote.eventTime || '-'],
     ['Pessoas', quote.guests ? `${quote.guests}` : '-'],
@@ -656,7 +663,7 @@ function drawQuotePdf(quote, stream) {
     drawInfoBox(doc, left + col * (columnWidth + columnGap), y + row * 58, columnWidth, 48, label, value);
   });
 
-  y += 252;
+  y += Math.ceil(info.length / 2) * 58 + 20;
 
   if (quote.notes) {
     doc
@@ -673,6 +680,24 @@ function drawQuotePdf(quote, stream) {
       .fontSize(10)
       .text(String(quote.notes), left + 12, y + 24, { width: contentWidth - 24, height: 22, ellipsis: true });
     y += 70;
+  }
+
+  const commercialNotes = String(quote.commercialNotes || '').trim() || defaultCommercialNotes();
+  if (commercialNotes) {
+    doc
+      .roundedRect(left, y, contentWidth, 58, 12)
+      .fillAndStroke('#fff0bd', '#e7cd7a');
+    doc
+      .fillColor('#6d5f3e')
+      .font('Helvetica-Bold')
+      .fontSize(8)
+      .text('CONDIÇÕES COMERCIAIS', left + 12, y + 10);
+    doc
+      .fillColor('#171511')
+      .font('Helvetica')
+      .fontSize(9.5)
+      .text(commercialNotes, left + 12, y + 24, { width: contentWidth - 24, height: 26, ellipsis: true });
+    y += 76;
   }
 
   doc
@@ -728,7 +753,7 @@ function drawQuotePdf(quote, stream) {
   });
 
   y += 8;
-  if (y > 700) {
+  if (y > 730) {
     doc.addPage();
     doc.rect(0, 0, doc.page.width, doc.page.height).fill('#fff7df');
     y = 42;

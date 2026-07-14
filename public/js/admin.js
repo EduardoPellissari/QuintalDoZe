@@ -28,6 +28,9 @@ let editingQuote = null;
 let pendingUserAccess = null;
 let quoteProducts = [];
 let quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
+let quoteSearch = '';
+let quoteFilterStatus = 'all';
+let quoteFilterType = 'all';
 let adminReportStartDate = todayDateValue();
 let adminReportEndDate = todayDateValue();
 let selectedAdminCashTable = '';
@@ -41,7 +44,9 @@ const quoteTypes = ['Café da tarde', 'Happy hour', 'Coffee break', 'Almoço/Jan
 const quoteStatuses = [
   { value: 'rascunho', label: 'Rascunho' },
   { value: 'enviado', label: 'Enviado' },
+  { value: 'aguardando', label: 'Aguardando resposta' },
   { value: 'aprovado', label: 'Aprovado' },
+  { value: 'recusado', label: 'Recusado' },
   { value: 'cancelado', label: 'Cancelado' },
 ];
 
@@ -749,6 +754,62 @@ function quoteStatusLabel(status) {
   return match ? match.label : status || 'Rascunho';
 }
 
+function quoteStatusBadge(status) {
+  if (status === 'aprovado') return 'ok';
+  if (['recusado', 'cancelado'].includes(status)) return 'danger';
+  if (status === 'aguardando') return 'blue';
+  return 'warn';
+}
+
+function normalizedSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function filteredQuotes(quotes) {
+  const search = normalizedSearchText(quoteSearch);
+
+  return quotes.filter((quote) => {
+    const matchesStatus = quoteFilterStatus === 'all' || quote.status === quoteFilterStatus;
+    const matchesType = quoteFilterType === 'all' || quote.eventType === quoteFilterType;
+    const text = normalizedSearchText(`${quote.clientName || ''} ${quote.phone || ''} ${quote.eventType || ''} ${quote.location || ''}`);
+    const matchesSearch = !search || text.includes(search);
+    return matchesStatus && matchesType && matchesSearch;
+  });
+}
+
+function quoteFilterPanel(quotes) {
+  const typeOptions = Array.from(new Set([...quoteTypes, ...quotes.map((quote) => quote.eventType).filter(Boolean)]));
+
+  return `
+    <section class="panel quote-filter-panel">
+      <div class="quote-filter-grid">
+        <label>Buscar orçamento
+          <input id="quoteSearch" type="search" placeholder="Cliente, telefone, local..." value="${escapeHtml(quoteSearch)}" onchange="setQuoteSearch(this.value)">
+        </label>
+
+        <label>Status
+          <select id="quoteFilterStatus" onchange="setQuoteFilterStatus(this.value)">
+            <option value="all">Todos</option>
+            ${quoteStatuses.map((status) => `<option value="${status.value}" ${quoteFilterStatus === status.value ? 'selected' : ''}>${status.label}</option>`).join('')}
+          </select>
+        </label>
+
+        <label>Tipo de evento
+          <select id="quoteFilterType" onchange="setQuoteFilterType(this.value)">
+            <option value="all">Todos</option>
+            ${typeOptions.map((type) => `<option value="${escapeHtml(type)}" ${quoteFilterType === type ? 'selected' : ''}>${escapeHtml(type)}</option>`).join('')}
+          </select>
+        </label>
+
+        <button class="soft" type="button" onclick="clearQuoteFilters()">Limpar filtros</button>
+      </div>
+    </section>
+  `;
+}
+
 function quoteDate(value) {
   if (!value) return '-';
   const date = new Date(`${value}T00:00:00`);
@@ -875,8 +936,8 @@ async function renderQuotes() {
     .filter((product) => product.active !== false && product.soldOut !== true)
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'));
 
-  const sortedQuotes = [...quotes].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  const activeQuotes = quotes.filter((quote) => !['aprovado', 'cancelado'].includes(quote.status)).length;
+  const sortedQuotes = [...filteredQuotes(quotes)].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const activeQuotes = quotes.filter((quote) => !['aprovado', 'cancelado', 'recusado'].includes(quote.status)).length;
   const approvedTotal = quotes
     .filter((quote) => quote.status === 'aprovado')
     .reduce((sum, quote) => sum + Number(quote.total || 0), 0);
@@ -936,8 +997,16 @@ async function renderQuotes() {
               <input id="qLocation" placeholder="Onde será o evento" value="${escapeHtml(editingQuote?.location || '')}">
             </label>
 
+            <label>Validade da proposta
+              <input id="qValidUntil" type="date" value="${escapeHtml(editingQuote?.validUntil || '')}">
+            </label>
+
             <label class="full">Observações
               <textarea id="qNotes" placeholder="Ex: incluir descartáveis, entrega, montagem, restrições alimentares...">${escapeHtml(editingQuote?.notes || '')}</textarea>
+            </label>
+
+            <label class="full">Observações comerciais do PDF
+              <textarea id="qCommercialNotes" placeholder="Ex: proposta válida conforme disponibilidade, confirmação mediante sinal, entrega combinada à parte...">${escapeHtml(editingQuote?.commercialNotes || '')}</textarea>
             </label>
           </div>
 
@@ -969,12 +1038,14 @@ async function renderQuotes() {
         <div class="admin-form-head">
           <div>
             <h3>Orçamentos salvos</h3>
-            <p>Histórico das propostas para eventos.</p>
+            <p>Histórico das propostas para eventos. ${sortedQuotes.length} de ${quotes.length} exibido(s).</p>
           </div>
         </div>
 
+        ${quoteFilterPanel(quotes)}
+
         <div class="quote-list">
-          ${sortedQuotes.length ? sortedQuotes.map(quoteCard).join('') : '<p class="muted">Nenhum orçamento criado ainda.</p>'}
+          ${sortedQuotes.length ? sortedQuotes.map(quoteCard).join('') : '<p class="muted">Nenhum orçamento encontrado com os filtros atuais.</p>'}
         </div>
       </section>
     </div>
@@ -1001,6 +1072,7 @@ function quoteCard(quote) {
     quote.eventDate ? quoteDate(quote.eventDate) : '',
     quote.eventTime || '',
     quote.guests ? `${quote.guests} pessoas` : '',
+    quote.validUntil ? `Válido até ${quoteDate(quote.validUntil)}` : '',
   ].filter(Boolean).join(' • ');
 
   return `
@@ -1011,7 +1083,7 @@ function quoteCard(quote) {
           <p class="muted">${escapeHtml(details || 'Evento sem data definida')}</p>
           ${quote.phone ? `<p class="muted">${escapeHtml(quote.phone)}</p>` : ''}
         </div>
-        <span class="badge ${quote.status === 'aprovado' ? 'ok' : quote.status === 'cancelado' ? 'danger' : 'warn'}">${quoteStatusLabel(quote.status)}</span>
+        <span class="badge ${quoteStatusBadge(quote.status)}">${quoteStatusLabel(quote.status)}</span>
       </div>
 
       <div class="quote-card-items">
@@ -1030,6 +1102,7 @@ function quoteCard(quote) {
 
       <div class="actions" style="margin-top:12px">
         <button class="soft" onclick="editQuote(${quote.id})">Editar</button>
+        <button class="soft" onclick="duplicateQuote(${quote.id})">Duplicar</button>
         <button class="soft" onclick="printQuote(${quote.id})">PDF</button>
         <button class="soft whatsapp-action" onclick="sendQuoteWhatsapp(${quote.id})">WhatsApp</button>
         ${quote.convertedOrderId ? `<span class="badge ok">Pedido #${quote.convertedOrderId}</span>` : `<button class="primary compact-action" onclick="approveQuote(${quote.id})">Aprovar e enviar</button>`}
@@ -1068,7 +1141,11 @@ window.sendQuoteWhatsapp = async (id) => {
   const quote = quotes.find((item) => Number(item.id) === Number(id));
   if (!quote) return toast('Orçamento não encontrado.');
 
-  const message = quoteWhatsappMessage(quote);
+  const defaultMessage = quoteWhatsappMessage(quote);
+  const editedMessage = prompt('Revise a mensagem antes de abrir o WhatsApp:', defaultMessage);
+  if (editedMessage === null) return;
+
+  const message = editedMessage.trim() || defaultMessage;
   const phoneUrl = whatsappPhoneUrl(quote.phone);
 
   const copied = await copyText(message).catch(() => false);
@@ -1097,6 +1174,8 @@ async function saveQuote(event) {
     guests: Number(document.getElementById('qGuests').value || 0),
     location: document.getElementById('qLocation').value,
     notes: document.getElementById('qNotes').value,
+    validUntil: document.getElementById('qValidUntil').value,
+    commercialNotes: document.getElementById('qCommercialNotes').value,
     status: document.getElementById('qStatus').value,
     items: quoteItems,
   };
@@ -1131,6 +1210,64 @@ window.deleteQuote = async (id) => {
   if (!confirm('Excluir este orçamento?')) return;
   await API.del('/api/quotes/' + id);
   toast('Orçamento excluído.');
+  renderQuotes();
+};
+
+window.duplicateQuote = async (id) => {
+  const quotes = await API.get('/api/quotes');
+  const quote = quotes.find((item) => Number(item.id) === Number(id));
+  if (!quote) return toast('Orçamento não encontrado.');
+
+  const copy = await API.post('/api/quotes', {
+    clientName: `${quote.clientName || 'Cliente'} (cópia)`,
+    phone: quote.phone || '',
+    eventType: quote.eventType || quoteTypes[0],
+    eventDate: quote.eventDate || '',
+    eventTime: quote.eventTime || '',
+    guests: Number(quote.guests || 0),
+    location: quote.location || '',
+    notes: quote.notes || '',
+    validUntil: quote.validUntil || '',
+    commercialNotes: quote.commercialNotes || '',
+    status: 'rascunho',
+    items: (quote.items || []).map((item) => ({
+      productId: item.productId || null,
+      description: item.description || '',
+      qty: Number(item.qty || 1),
+      unitPrice: Number(item.unitPrice || 0),
+    })),
+  });
+
+  editingQuote = copy;
+  quoteItems = (copy.items || []).map((item) => ({
+    productId: item.productId || null,
+    description: item.description || '',
+    qty: Number(item.qty || 1),
+    unitPrice: Number(item.unitPrice || 0),
+  }));
+  toast('Orçamento duplicado. Revise os dados e salve se precisar ajustar.');
+  renderQuotes();
+};
+
+window.setQuoteSearch = (value) => {
+  quoteSearch = value || '';
+  renderQuotes();
+};
+
+window.setQuoteFilterStatus = (value) => {
+  quoteFilterStatus = value || 'all';
+  renderQuotes();
+};
+
+window.setQuoteFilterType = (value) => {
+  quoteFilterType = value || 'all';
+  renderQuotes();
+};
+
+window.clearQuoteFilters = () => {
+  quoteSearch = '';
+  quoteFilterStatus = 'all';
+  quoteFilterType = 'all';
   renderQuotes();
 };
 

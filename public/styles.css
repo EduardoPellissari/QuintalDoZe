@@ -2326,6 +2326,30 @@ textarea {
   gap: 14px;
 }
 
+.quote-filter-panel {
+  margin-bottom: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(0,0,0,.18);
+  border-color: rgba(246,196,0,.12);
+}
+
+.quote-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(170px, .8fr) minmax(190px, .9fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.quote-filter-grid label {
+  margin-top: 0;
+}
+
+.quote-filter-grid button {
+  min-height: 48px;
+  white-space: nowrap;
+}
+
 .quote-card {
   padding: 18px;
   border: 1px solid rgba(255,255,255,.1);
@@ -2376,6 +2400,10 @@ textarea {
   }
 
   .quote-item-row {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-filter-grid {
     grid-template-columns: 1fr;
   }
 
