@@ -409,15 +409,19 @@ async function closeKitchenDay() {
   const ok = confirm('Encerrar o dia da cozinha? Os pedidos ativos de hoje sairão da tela da cozinha, mas continuarão salvos nos relatórios e no caixa.');
   if (!ok) return;
 
-  await API.post('/api/orders/close-day', {});
-  toast('Dia encerrado. Cozinha limpa para o próximo ciclo.');
-  render();
+  await withActionLock('kitchen-close-day', async () => {
+    await API.post('/api/orders/close-day', {});
+    toast('Dia encerrado. Cozinha limpa para o próximo ciclo.');
+    render();
+  });
 }
 
 async function statusOrder(id, status) {
-  await API.put('/api/orders/' + id + '/status', { status });
-  toast(txt('cozinha.statusAtualizado', 'Status atualizado.'));
-  render();
+  await withActionLock(`kitchen-status-${id}-${status}`, async () => {
+    await API.put('/api/orders/' + id + '/status', { status });
+    toast(txt('cozinha.statusAtualizado', 'Status atualizado.'));
+    render();
+  });
 }
 
 window.statusOrder = statusOrder;

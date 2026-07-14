@@ -39,6 +39,41 @@ async function handle(res) {
   return data;
 }
 
+const actionLocks = new Set();
+
+function actionButtonFromTrigger(trigger) {
+  if (trigger?.closest) return trigger.closest('button');
+  if (document.activeElement?.closest) return document.activeElement.closest('button');
+  return null;
+}
+
+async function withActionLock(key, task, trigger = null) {
+  const lockKey = String(key || 'acao');
+  if (actionLocks.has(lockKey)) return false;
+
+  actionLocks.add(lockKey);
+  const button = actionButtonFromTrigger(trigger);
+
+  if (button) {
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+  }
+
+  try {
+    await task();
+    return true;
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
+
+    actionLocks.delete(lockKey);
+  }
+}
+
+window.withActionLock = withActionLock;
+
 function txt(path, fallback = '') {
   const parts = String(path).split('.');
   let value = window.TEXTOS || {};
@@ -218,12 +253,16 @@ function orderFinalTotal(order) {
 }
 
 function cashOpenOrdersSignature(openOrders, cashInfo = {}) {
+  const currentSession = cashInfo?.current || cashInfo || {};
   const orders = [...(openOrders || [])]
     .sort((a, b) => String(a.id).localeCompare(String(b.id)))
     .map((order) => ({
       id: order.id,
       table: order.table,
       status: order.status,
+      source: order.source || '',
+      quoteId: order.quoteId || '',
+      eventStatus: order.eventStatus || '',
       paid: order.paid === true,
       subtotal: orderSubtotal(order),
       total: order.total ?? null,
@@ -240,7 +279,13 @@ function cashOpenOrdersSignature(openOrders, cashInfo = {}) {
     }));
 
   return JSON.stringify({
-    cashSession: cashInfo?.id || cashInfo?.openedAt || cashInfo?.status || '',
+    cashSession: {
+      id: currentSession.id || '',
+      status: currentSession.status || '',
+      openedAt: currentSession.openedAt || '',
+      closedAt: currentSession.closedAt || '',
+      entries: (currentSession.entries || []).length,
+    },
     orders,
   });
 }
@@ -423,6 +468,49 @@ function eventPaymentKey(orderId) {
 function eventOrderTitle(order) {
   return order?.table || (order?.quoteId ? `Evento ${order.quoteId}` : `Pedido #${order?.id || ''}`);
 }
+
+const EVENT_STATUS_OPTIONS = [
+  { value: 'agendado', label: 'Agendado', badge: 'blue' },
+  { value: 'confirmado', label: 'Confirmado', badge: 'ok' },
+  { value: 'finalizado', label: 'Finalizado', badge: 'ok' },
+  { value: 'cancelado', label: 'Cancelado', badge: 'danger' },
+];
+
+function eventStatusOption(value) {
+  return EVENT_STATUS_OPTIONS.find((item) => item.value === value) || EVENT_STATUS_OPTIONS[0];
+}
+
+function eventStatusLabel(value) {
+  return eventStatusOption(value).label;
+}
+
+function eventStatusBadgeClass(value) {
+  return eventStatusOption(value).badge;
+}
+
+function eventStatusControls(order, scope) {
+  const value = eventStatusOption(order?.eventStatus).value;
+
+  return `
+    <label class="event-status-control">Status do evento
+      <select onchange="updateEventStatus(${order.id}, this.value, '${scope}')">
+        ${EVENT_STATUS_OPTIONS.map((option) => `
+          <option value="${option.value}" ${option.value === value ? 'selected' : ''}>${option.label}</option>
+        `).join('')}
+      </select>
+    </label>
+  `;
+}
+
+window.updateEventStatus = async (orderId, eventStatusValue, scope) => {
+  await withActionLock(`event-status-${orderId}`, async () => {
+    await API.put(`/api/orders/${orderId}/event-status`, { eventStatus: eventStatusValue });
+    toast('Status do evento atualizado.');
+
+    if (scope === 'admin' && typeof renderCash === 'function') await renderCash();
+    if (scope === 'cash' && typeof cash === 'function') await cash();
+  });
+};
 
 function eventOrderMeta(order) {
   return String(order?.notes || '')
@@ -862,8 +950,13 @@ function eventCheckoutPanel(eventOrders, scope, closeFunctionName, cancelFunctio
                 <h3>${htmlAttr(eventOrderTitle(order))}</h3>
                 <p>Pedido #${order.id}${order.quoteId ? ` • Orçamento #${order.quoteId}` : ''} • ${dateTime(order.createdAt)}</p>
               </div>
-              <b>${money(orderSubtotal(order))}</b>
+              <div class="event-checkout-total">
+                <span class="badge ${eventStatusBadgeClass(order.eventStatus)}">${eventStatusLabel(order.eventStatus)}</span>
+                <b>${money(orderSubtotal(order))}</b>
+              </div>
             </div>
+
+            ${eventStatusControls(order, scope)}
 
             ${meta.length ? `
               <div class="event-meta-grid">

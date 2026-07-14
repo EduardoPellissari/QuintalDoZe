@@ -164,6 +164,11 @@ function openAdminTab(tab) {
 
 window.openAdminTab = openAdminTab;
 
+window.downloadSystemBackup = () => {
+  window.location.href = '/api/backup';
+  toast('Backup dos dados iniciado.');
+};
+
 window.openQuoteForEdit = async (id) => {
   stashEmbeddedAdminFrames();
   document.querySelectorAll('nav button').forEach((item) => item.classList.remove('active'));
@@ -383,6 +388,7 @@ async function renderDashboard() {
         <button class="soft" type="button" onclick="openAdminTab('orders')">Abrir pedidos</button>
         <button class="soft" type="button" onclick="openAdminTab('kitchen')">Ver cozinha</button>
         <button class="soft" type="button" onclick="openAdminTab('products')">Produtos</button>
+        <button class="soft" type="button" onclick="downloadSystemBackup()">Backup</button>
       </section>
 
       <div class="dashboard-grid">
@@ -681,24 +687,26 @@ async function saveUser(event) {
     role: document.getElementById('uRole').value,
   };
 
-  try {
-    if (editingUser) await API.put('/api/users/' + editingUser.id, body);
-    else await API.post('/api/users', body);
+  await withActionLock('admin-save-user', async () => {
+    try {
+      if (editingUser) await API.put('/api/users/' + editingUser.id, body);
+      else await API.post('/api/users', body);
 
-    const copiedAccess = password ? await copyUserAccess(body.email, password, body.role) : false;
-    pendingUserAccess = password ? {
-      text: userAccessText(body.email, password, body.role),
-      copied: copiedAccess,
-    } : null;
+      const copiedAccess = password ? await copyUserAccess(body.email, password, body.role) : false;
+      pendingUserAccess = password ? {
+        text: userAccessText(body.email, password, body.role),
+        copied: copiedAccess,
+      } : null;
 
-    editingUser = null;
-    toast(password
-      ? copiedAccess ? 'Usuário salvo. Acesso copiado.' : 'Usuário salvo. Copie o acesso antes de sair da tela.'
-      : txt('admin.usuarios.salvo', 'Usuário salvo.'));
-    renderUsers();
-  } catch (err) {
-    toast(err.message);
-  }
+      editingUser = null;
+      toast(password
+        ? copiedAccess ? 'Usuário salvo. Acesso copiado.' : 'Usuário salvo. Copie o acesso antes de sair da tela.'
+        : txt('admin.usuarios.salvo', 'Usuário salvo.'));
+      renderUsers();
+    } catch (err) {
+      toast(err.message);
+    }
+  }, event.submitter);
 }
 
 window.editUser = async (id) => {
@@ -956,16 +964,18 @@ async function saveProduct(event) {
     usage: document.getElementById('pUsage').value,
   };
 
-  try {
-    if (editingProduct) await API.put('/api/products/' + editingProduct.id, body);
-    else await API.post('/api/products', body);
+  await withActionLock('admin-save-product', async () => {
+    try {
+      if (editingProduct) await API.put('/api/products/' + editingProduct.id, body);
+      else await API.post('/api/products', body);
 
-    editingProduct = null;
-    toast(txt('admin.produtos.salvo', 'Produto salvo.'));
-    renderProducts();
-  } catch (err) {
-    toast(err.message);
-  }
+      editingProduct = null;
+      toast(txt('admin.produtos.salvo', 'Produto salvo.'));
+      renderProducts();
+    } catch (err) {
+      toast(err.message);
+    }
+  }, event.submitter);
 }
 
 window.editProduct = async (id) => {
@@ -1831,17 +1841,19 @@ async function saveQuote(event) {
     items: quoteItems,
   };
 
-  try {
-    if (editingQuote) await API.put('/api/quotes/' + editingQuote.id, body);
-    else await API.post('/api/quotes', body);
+  await withActionLock('admin-save-quote', async () => {
+    try {
+      if (editingQuote) await API.put('/api/quotes/' + editingQuote.id, body);
+      else await API.post('/api/quotes', body);
 
-    editingQuote = null;
-    quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
-    toast('Orçamento salvo.');
-    renderQuotes();
-  } catch (err) {
-    toast(err.message);
-  }
+      editingQuote = null;
+      quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
+      toast('Orçamento salvo.');
+      renderQuotes();
+    } catch (err) {
+      toast(err.message);
+    }
+  }, event.submitter);
 }
 
 window.editQuote = async (id) => {
@@ -1925,9 +1937,11 @@ window.clearQuoteFilters = () => {
 window.approveQuote = async (id) => {
   const table = prompt('Informe a mesa/comanda ou nome do evento:', `Evento ${id}`) || `Evento ${id}`;
   const waiter = prompt('Responsável pelo evento/pedido:', 'Orçamento') || 'Orçamento';
-  await API.post('/api/quotes/' + id + '/approve', { table, waiter });
-  toast('Orçamento aprovado e enviado como pedido/evento.');
-  renderQuotes();
+  await withActionLock(`admin-approve-quote-${id}`, async () => {
+    await API.post('/api/quotes/' + id + '/approve', { table, waiter });
+    toast('Orçamento aprovado e enviado como pedido/evento.');
+    renderQuotes();
+  });
 };
 
 window.printQuote = async (id) => {
@@ -2073,16 +2087,20 @@ window.setAdminCashFilter = (filter) => {
 
 window.closeAdminTable = async (encoded) => {
   const table = decodedTable(encoded);
-  await API.post('/api/tables/pay', tablePaymentBodyFromControls(table, 'admin'));
-  toast('Mesa/comanda fechada.');
-  selectedAdminCashTable = '';
-  renderCash();
+  await withActionLock(`admin-close-table-${table}`, async () => {
+    await API.post('/api/tables/pay', tablePaymentBodyFromControls(table, 'admin'));
+    toast('Mesa/comanda fechada.');
+    selectedAdminCashTable = '';
+    renderCash();
+  });
 };
 
 window.closeAdminEvent = async (orderId) => {
-  await API.put(`/api/orders/${orderId}/pay`, eventPaymentBodyFromControls(orderId, 'admin'));
-  toast('Evento fechado.');
-  renderCash();
+  await withActionLock(`admin-close-event-${orderId}`, async () => {
+    await API.put(`/api/orders/${orderId}/pay`, eventPaymentBodyFromControls(orderId, 'admin'));
+    toast('Evento fechado.');
+    renderCash();
+  });
 };
 
 window.transferAdminTable = async (encoded) => {
@@ -2090,29 +2108,37 @@ window.transferAdminTable = async (encoded) => {
   const body = tableTransferBodyFromControls(table, 'admin');
   if (!body.toTable.trim()) return toast('Informe a mesa/comanda de destino.');
   if (!confirm(`Mover/juntar a mesa ${body.fromTable} para ${body.toTable.trim()}?`)) return;
-  await API.post('/api/tables/transfer', body);
-  toast('Mesa/comanda movida.');
-  selectedAdminCashTable = body.toTable.trim();
-  renderCash();
+  await withActionLock(`admin-transfer-${body.fromTable}-${body.toTable}`, async () => {
+    await API.post('/api/tables/transfer', body);
+    toast('Mesa/comanda movida.');
+    selectedAdminCashTable = body.toTable.trim();
+    renderCash();
+  });
 };
 
 window.openCashSession = async (scope) => {
-  await API.post('/api/cash-sessions/open', cashSessionOpenBody(scope));
-  toast('Caixa aberto.');
-  renderCash();
+  await withActionLock(`${scope}-open-cash-session`, async () => {
+    await API.post('/api/cash-sessions/open', cashSessionOpenBody(scope));
+    toast('Caixa aberto.');
+    renderCash();
+  });
 };
 
 window.addCashSessionEntry = async (scope) => {
-  await API.post('/api/cash-sessions/entry', cashSessionEntryBody(scope));
-  toast('Movimentação registrada.');
-  renderCash();
+  await withActionLock(`${scope}-cash-entry`, async () => {
+    await API.post('/api/cash-sessions/entry', cashSessionEntryBody(scope));
+    toast('Movimentação registrada.');
+    renderCash();
+  });
 };
 
 window.closeCashSession = async (scope) => {
   if (!confirm('Fechar o caixa do dia?')) return;
-  const session = await API.post('/api/cash-sessions/close', cashSessionCloseBody(scope));
-  toast(`Caixa fechado. Diferença: ${money(session.difference)}`);
-  renderCash();
+  await withActionLock(`${scope}-close-cash-session`, async () => {
+    const session = await API.post('/api/cash-sessions/close', cashSessionCloseBody(scope));
+    toast(`Caixa fechado. Diferença: ${money(session.difference)}`);
+    renderCash();
+  });
 };
 
 function orderDurationMinutes(order) {
@@ -2137,13 +2163,18 @@ async function renderReports() {
   setText('pageTitle', txt('admin.relatorios.titulo', 'Relatórios'));
   setText('pageSub', txt('admin.relatorios.subtitulo', 'Resumo financeiro e produtos mais vendidos dentro do painel admin.'));
 
-  const [orders, cashSessions, activityLog] = await Promise.all([
+  const [orders, cashSessions, activityLog, quotes] = await Promise.all([
     API.get('/api/orders'),
     API.get('/api/cash-sessions'),
     API.get('/api/activity-log'),
+    API.get('/api/quotes'),
   ]);
   const paidOrders = orders.filter((order) => order.paid && dateInRange(order.paidAt || order.createdAt, adminReportStartDate, adminReportEndDate));
+  const paidEvents = paidOrders.filter(isEventOrder);
+  const paidRestaurantOrders = paidOrders.filter((order) => !isEventOrder(order));
   const total = paidOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
+  const restaurantTotal = paidRestaurantOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
+  const eventTotal = paidEvents.reduce((sum, order) => sum + orderFinalTotal(order), 0);
   const items = {};
   const payments = {};
   const totalDiscount = paidOrders.reduce((sum, order) => sum + orderDiscount(order), 0);
@@ -2164,6 +2195,17 @@ async function renderReports() {
   const paymentRows = Object.entries(payments).sort((a, b) => b[1].total - a[1].total);
   const durations = paidOrders.map(orderDurationMinutes).filter((value) => value !== null);
   const avgDuration = durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : null;
+  const quotesInPeriod = quotes.filter((quote) => dateInRange(quote.updatedAt || quote.createdAt, adminReportStartDate, adminReportEndDate));
+  const quoteStatusRows = quoteStatuses
+    .map((status) => {
+      const rows = quotesInPeriod.filter((quote) => quote.status === status.value);
+      return {
+        label: status.label,
+        count: rows.length,
+        total: rows.reduce((sum, quote) => sum + Number(quote.total || 0), 0)
+      };
+    })
+    .filter((row) => row.count);
 
   content.innerHTML = `
     <div class="report-actions">
@@ -2193,8 +2235,13 @@ async function renderReports() {
       </div>
 
       <div class="grid g2" style="margin-top:18px">
+        <div class="metric"><span>Restaurante</span><b>${money(restaurantTotal)}</b></div>
+        <div class="metric"><span>Eventos/orçamentos</span><b>${money(eventTotal)}</b></div>
+      </div>
+
+      <div class="grid g2" style="margin-top:18px">
         <div class="metric"><span>Taxas de serviço</span><b>${money(totalService)}</b></div>
-        <div class="metric"><span>Descontos</span><b>${money(totalDiscount)}</b></div>
+        <div class="metric"><span>Descontos concedidos</span><b>${money(totalDiscount)}</b></div>
       </div>
 
       <h2>Resumo por pagamento</h2>
@@ -2216,6 +2263,28 @@ async function renderReports() {
           </tbody>
         </table>
       </div>
+
+      <h2>Resumo de orçamentos</h2>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Status</th><th>Qtd.</th><th>Total previsto</th></tr></thead>
+          <tbody>
+            ${quoteStatusRows.length ? quoteStatusRows.map((row) => `<tr><td>${htmlAttr(row.label)}</td><td>${row.count}</td><td>${money(row.total)}</td></tr>`).join('') : '<tr><td colspan="3">Nenhum orçamento movimentado neste período.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      ${paidEvents.length ? `
+        <h2>Eventos pagos</h2>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Evento</th><th>Cliente</th><th>Pagamento</th><th>Total</th></tr></thead>
+            <tbody>
+              ${paidEvents.map((order) => `<tr><td>${htmlAttr(eventOrderTitle(order))}</td><td>${htmlAttr(order.eventClient || '-')}</td><td>${paymentMethodLabel(order.paymentMethod)}</td><td>${money(orderFinalTotal(order))}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
 
       <h2>${txt('relatorios.pedidosPagos', 'Pedidos pagos')}</h2>
       <div class="table-wrap">
@@ -2257,9 +2326,11 @@ window.setAdminReportDate = (value) => {
 window.adminCancelOrder = async (id) => {
   if (!confirm(txt('pedidos.confirmarCancelar', 'Cancelar pedido?'))) return;
   const cancelReason = prompt('Informe o motivo do cancelamento:', '') || '';
-  await API.put('/api/orders/' + id + '/status', { status: 'cancelado', cancelReason });
-  toast(txt('pedidos.pedidoCancelado', 'Pedido cancelado.'));
-  renderCash();
+  await withActionLock(`admin-cancel-order-${id}`, async () => {
+    await API.put('/api/orders/' + id + '/status', { status: 'cancelado', cancelReason });
+    toast(txt('pedidos.pedidoCancelado', 'Pedido cancelado.'));
+    renderCash();
+  });
 };
 
 renderDashboard();

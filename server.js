@@ -4,6 +4,7 @@ const compression = require('compression');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
 
 const app = express();
@@ -18,6 +19,7 @@ if (DATABASE_URL) {
 }
 
 const STORAGE_MODE = pool ? 'postgres' : 'file';
+const PASSWORD_VERSION = 'pbkdf2-sha256';
 
 let pgReady = false;
 let writeQueue = Promise.resolve();
@@ -90,9 +92,69 @@ function productMatchesUsage(product, usage) {
   return productUsage(product.usage) === usage;
 }
 
+function normalizeUser(user) {
+  const safeUser = user && typeof user === 'object' ? user : {};
+  return {
+    ...safeUser,
+    active: safeUser.active !== false
+  };
+}
+
+function passwordDigest(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.pbkdf2Sync(String(password || ''), salt, 120000, 32, 'sha256').toString('hex');
+  return { salt, hash };
+}
+
+function timingSafeHexEqual(left, right) {
+  const leftBuffer = Buffer.from(String(left || ''), 'hex');
+  const rightBuffer = Buffer.from(String(right || ''), 'hex');
+  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function setUserPassword(user, password) {
+  const { salt, hash } = passwordDigest(password);
+  user.passwordSalt = salt;
+  user.passwordHash = hash;
+  user.passwordVersion = PASSWORD_VERSION;
+  user.passwordUpdatedAt = new Date().toISOString();
+  delete user.password;
+  return user;
+}
+
+function verifyUserPassword(user, password) {
+  if (!user || !password) return false;
+
+  if (user.passwordHash && user.passwordSalt) {
+    const { hash } = passwordDigest(password, user.passwordSalt);
+    return timingSafeHexEqual(hash, user.passwordHash);
+  }
+
+  return String(user.password || '') === String(password || '');
+}
+
+function sanitizedBackup(db) {
+  return {
+    exportedAt: new Date().toISOString(),
+    storage: STORAGE_MODE,
+    data: {
+      users: (db.users || []).map(publicUser),
+      products: db.products || [],
+      quotes: db.quotes || [],
+      orders: db.orders || [],
+      cashSessions: db.cashSessions || [],
+      activityLog: db.activityLog || []
+    }
+  };
+}
+
 function paymentMethod(value) {
   const allowed = ['pix', 'dinheiro', 'debito', 'credito', 'voucher', 'misto'];
   return allowed.includes(String(value)) ? String(value) : 'pix';
+}
+
+function eventStatus(value) {
+  const allowed = ['agendado', 'confirmado', 'finalizado', 'cancelado'];
+  return allowed.includes(String(value)) ? String(value) : 'agendado';
 }
 
 function itemBasePrice(item) {
@@ -239,6 +301,7 @@ function normalizeDb(dbCandidate) {
   const db = dbCandidate && typeof dbCandidate === 'object' ? dbCandidate : {};
 
   if (!Array.isArray(db.users)) db.users = defaults.users;
+  db.users = db.users.map(normalizeUser);
   if (!Array.isArray(db.products)) db.products = [];
   db.products = db.products.map(normalizeProduct);
   if (!Array.isArray(db.quotes)) db.quotes = [];
@@ -397,13 +460,27 @@ function asyncHandler(handler) {
 
 app.get('/api/health', (req, res) => res.json({ ok: true, name: 'Quintal do Zé Local', storage: STORAGE_MODE }));
 
+app.get('/api/backup', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const date = localDate(new Date());
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="backup-quintal-do-ze-${date}.json"`);
+  res.json(sanitizedBackup(db));
+}));
+
 app.post('/api/login', asyncHandler(async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
-  const password = String(req.body.password || '').trim();
+  const password = String(req.body.password || '');
   const db = await readDb();
-  const user = db.users.find((u) => String(u.email).toLowerCase() === email && String(u.password) === password);
-  if (!user) return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
+  const user = db.users.find((u) => String(u.email).toLowerCase() === email);
+  if (!user || !verifyUserPassword(user, password)) return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
   if (user.active === false) return res.status(403).json({ error: 'Usuário desativado. Fale com o administrador.' });
+
+  if (!user.passwordHash && user.password) {
+    setUserPassword(user, password);
+    await writeDb(db);
+  }
+
   res.json(publicUser(user));
 }));
 
@@ -415,17 +492,18 @@ app.get('/api/users', asyncHandler(async (req, res) => {
 app.post('/api/users', asyncHandler(async (req, res) => {
   const db = await readDb();
   const email = String(req.body.email || '').trim().toLowerCase();
-  if (!email || !req.body.password || !req.body.role) return res.status(400).json({ error: 'Preencha nome, e-mail, senha e perfil.' });
+  const password = String(req.body.password || '').trim();
+  if (!email || !password || !req.body.role) return res.status(400).json({ error: 'Preencha nome, e-mail, senha e perfil.' });
   if (db.users.some((u) => String(u.email).toLowerCase() === email)) return res.status(409).json({ error: 'Já existe usuário com este e-mail.' });
 
   const user = {
     id: nextId(db.users),
     name: String(req.body.name || '').trim() || email,
     email,
-    password: String(req.body.password),
     role: String(req.body.role),
     active: req.body.active !== false
   };
+  setUserPassword(user, password);
 
   db.users.push(user);
   await writeDb(db);
@@ -447,7 +525,7 @@ app.put('/api/users/:id', asyncHandler(async (req, res) => {
   user.email = email;
   user.role = String(req.body.role);
   if (req.body.active !== undefined) user.active = req.body.active !== false;
-  if (req.body.password) user.password = String(req.body.password);
+  if (String(req.body.password || '').trim()) setUserPassword(user, String(req.body.password).trim());
 
   await writeDb(db);
   res.json(publicUser(user));
@@ -951,6 +1029,13 @@ app.post('/api/quotes/:id/approve', asyncHandler(async (req, res) => {
     cancelReason: '',
     source: 'quote',
     quoteId: quote.id,
+    eventStatus: 'agendado',
+    eventClient: quote.clientName || '',
+    eventType: quote.eventType || '',
+    eventDate: quote.eventDate || '',
+    eventTime: quote.eventTime || '',
+    eventGuests: Number(quote.guests || 0),
+    eventLocation: quote.location || '',
     createdAt: now,
     startedAt: null,
     readyAt: null,
@@ -979,6 +1064,27 @@ app.get('/api/orders/:id', asyncHandler(async (req, res) => {
   const db = await readDb();
   const order = db.orders.find((item) => String(item.id) === String(req.params.id));
   if (!order) return res.status(404).json({ error: 'Pedido não encontrado.' });
+  res.json(order);
+}));
+
+app.put('/api/orders/:id/event-status', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find((o) => String(o.id) === String(req.params.id));
+  if (!order) return res.status(404).json({ error: 'Evento não encontrado.' });
+  if (!isEventOrder(order)) return res.status(400).json({ error: 'Este pedido não é um evento.' });
+
+  const previousStatus = order.eventStatus || 'agendado';
+  const nextStatus = eventStatus(req.body.eventStatus || req.body.status);
+  order.eventStatus = nextStatus;
+
+  if (nextStatus === 'cancelado' && order.status !== 'cancelado') {
+    order.status = 'cancelado';
+    order.cancelReason = String(req.body.cancelReason || 'Evento cancelado').trim();
+    order.canceledAt = new Date().toISOString();
+  }
+
+  logAction(db, 'event', `Evento #${order.id} alterado para ${nextStatus}`, { orderId: order.id, previousStatus, nextStatus });
+  await writeDb(db);
   res.json(order);
 }));
 

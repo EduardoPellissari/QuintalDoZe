@@ -174,16 +174,20 @@ window.setCashFilter = (filter) => {
 
 window.closeCashTable = async (encoded) => {
   const table = decodedTable(encoded);
-  await API.post('/api/tables/pay', tablePaymentBodyFromControls(table, 'cash'));
-  toast('Mesa/comanda fechada.');
-  selectedCashTable = '';
-  cash();
+  await withActionLock(`cash-close-table-${table}`, async () => {
+    await API.post('/api/tables/pay', tablePaymentBodyFromControls(table, 'cash'));
+    toast('Mesa/comanda fechada.');
+    selectedCashTable = '';
+    cash();
+  });
 };
 
 window.closeCashEvent = async (orderId) => {
-  await API.put(`/api/orders/${orderId}/pay`, eventPaymentBodyFromControls(orderId, 'cash'));
-  toast('Evento fechado.');
-  cash();
+  await withActionLock(`cash-close-event-${orderId}`, async () => {
+    await API.put(`/api/orders/${orderId}/pay`, eventPaymentBodyFromControls(orderId, 'cash'));
+    toast('Evento fechado.');
+    cash();
+  });
 };
 
 window.transferCashTable = async (encoded) => {
@@ -191,29 +195,37 @@ window.transferCashTable = async (encoded) => {
   const body = tableTransferBodyFromControls(table, 'cash');
   if (!body.toTable.trim()) return toast('Informe a mesa/comanda de destino.');
   if (!confirm(`Mover/juntar a mesa ${body.fromTable} para ${body.toTable.trim()}?`)) return;
-  await API.post('/api/tables/transfer', body);
-  toast('Mesa/comanda movida.');
-  selectedCashTable = body.toTable.trim();
-  cash();
+  await withActionLock(`cash-transfer-${body.fromTable}-${body.toTable}`, async () => {
+    await API.post('/api/tables/transfer', body);
+    toast('Mesa/comanda movida.');
+    selectedCashTable = body.toTable.trim();
+    cash();
+  });
 };
 
 window.openCashSession = async (scope) => {
-  await API.post('/api/cash-sessions/open', cashSessionOpenBody(scope));
-  toast('Caixa aberto.');
-  cash();
+  await withActionLock(`${scope}-open-cash-session`, async () => {
+    await API.post('/api/cash-sessions/open', cashSessionOpenBody(scope));
+    toast('Caixa aberto.');
+    cash();
+  });
 };
 
 window.addCashSessionEntry = async (scope) => {
-  await API.post('/api/cash-sessions/entry', cashSessionEntryBody(scope));
-  toast('Movimentação registrada.');
-  cash();
+  await withActionLock(`${scope}-cash-entry`, async () => {
+    await API.post('/api/cash-sessions/entry', cashSessionEntryBody(scope));
+    toast('Movimentação registrada.');
+    cash();
+  });
 };
 
 window.closeCashSession = async (scope) => {
   if (!confirm('Fechar o caixa do dia?')) return;
-  const session = await API.post('/api/cash-sessions/close', cashSessionCloseBody(scope));
-  toast(`Caixa fechado. Diferença: ${money(session.difference)}`);
-  cash();
+  await withActionLock(`${scope}-close-cash-session`, async () => {
+    const session = await API.post('/api/cash-sessions/close', cashSessionCloseBody(scope));
+    toast(`Caixa fechado. Diferença: ${money(session.difference)}`);
+    cash();
+  });
 };
 
 function orderDurationMinutes(order) {
@@ -243,7 +255,11 @@ async function reports() {
     API.get('/api/activity-log'),
   ]);
   const paidOrders = orders.filter((order) => order.paid && dateInRange(order.paidAt || order.createdAt, cashReportStartDate, cashReportEndDate));
+  const paidEvents = paidOrders.filter(isEventOrder);
+  const paidRestaurantOrders = paidOrders.filter((order) => !isEventOrder(order));
   const total = paidOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
+  const restaurantTotal = paidRestaurantOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
+  const eventTotal = paidEvents.reduce((sum, order) => sum + orderFinalTotal(order), 0);
   const items = {};
   const payments = {};
   const totalDiscount = paidOrders.reduce((sum, order) => sum + orderDiscount(order), 0);
@@ -293,8 +309,13 @@ async function reports() {
       </div>
 
       <div class="grid g2" style="margin-top:18px">
+        <div class="metric"><span>Restaurante</span><b>${money(restaurantTotal)}</b></div>
+        <div class="metric"><span>Eventos/orçamentos</span><b>${money(eventTotal)}</b></div>
+      </div>
+
+      <div class="grid g2" style="margin-top:18px">
         <div class="metric"><span>Taxas de serviço</span><b>${money(totalService)}</b></div>
-        <div class="metric"><span>Descontos</span><b>${money(totalDiscount)}</b></div>
+        <div class="metric"><span>Descontos concedidos</span><b>${money(totalDiscount)}</b></div>
       </div>
 
       <h2>Resumo por pagamento</h2>
@@ -316,6 +337,18 @@ async function reports() {
           </tbody>
         </table>
       </div>
+
+      ${paidEvents.length ? `
+        <h2>Eventos pagos</h2>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Evento</th><th>Cliente</th><th>Pagamento</th><th>Total</th></tr></thead>
+            <tbody>
+              ${paidEvents.map((order) => `<tr><td>${htmlAttr(eventOrderTitle(order))}</td><td>${htmlAttr(order.eventClient || '-')}</td><td>${paymentMethodLabel(order.paymentMethod)}</td><td>${money(orderFinalTotal(order))}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
 
       <h2>${txt('relatorios.pedidosPagos', 'Pedidos pagos')}</h2>
       <div class="table-wrap">
@@ -357,9 +390,11 @@ window.setCashReportDate = (value) => {
 async function cancelOrder(id) {
   if (!confirm(txt('pedidos.confirmarCancelar', 'Cancelar pedido?'))) return;
   const cancelReason = prompt('Informe o motivo do cancelamento:', '') || '';
-  await API.put('/api/orders/' + id + '/status', { status: 'cancelado', cancelReason });
-  toast(txt('pedidos.pedidoCancelado', 'Pedido cancelado.'));
-  cash();
+  await withActionLock(`cash-cancel-order-${id}`, async () => {
+    await API.put('/api/orders/' + id + '/status', { status: 'cancelado', cancelReason });
+    toast(txt('pedidos.pedidoCancelado', 'Pedido cancelado.'));
+    cash();
+  });
 }
 
 window.cancelOrder = cancelOrder;

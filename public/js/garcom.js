@@ -560,31 +560,33 @@ async function send(event) {
 
   if (!cart.length) return toast(txt('garcom.erroSemItem', 'Adicione pelo menos um item.'));
 
-  try {
-    await API.post('/api/orders', {
-      table: document.getElementById('table').value,
-      waiter: document.getElementById('waiter').value,
-      notes: document.getElementById('notes').value,
-      items: cart.map((item) => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        basePrice: item.price,
-        extraPrice: Number(item.extraPrice || 0),
-        note: item.note || '',
-        qty: item.qty,
-      })),
-    });
+  await withActionLock('garcom-send-order', async () => {
+    try {
+      await API.post('/api/orders', {
+        table: document.getElementById('table').value,
+        waiter: document.getElementById('waiter').value,
+        notes: document.getElementById('notes').value,
+        items: cart.map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          basePrice: item.price,
+          extraPrice: Number(item.extraPrice || 0),
+          note: item.note || '',
+          qty: item.qty,
+        })),
+      });
 
-    toast(txt('garcom.pedidoEnviado', 'Pedido enviado para cozinha.'));
-    cart = [];
-    document.getElementById('orderForm').reset();
-    await refreshOpenOrders();
-    renderTableSuggestions();
-    renderCart();
-  } catch (err) {
-    toast(err.message);
-  }
+      toast(txt('garcom.pedidoEnviado', 'Pedido enviado para cozinha.'));
+      cart = [];
+      document.getElementById('orderForm').reset();
+      await refreshOpenOrders();
+      renderTableSuggestions();
+      renderCart();
+    } catch (err) {
+      toast(err.message);
+    }
+  }, event.submitter);
 }
 
 window.selectTableSuggestion = selectTableSuggestion;

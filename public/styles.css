@@ -1069,10 +1069,45 @@ textarea {
   font-weight:800
 }
 
-.event-checkout-head > b {
+.event-checkout-head > b,
+.event-checkout-total b {
   color:var(--gold);
   font-size:26px;
   white-space:nowrap
+}
+
+.event-checkout-total {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:8px;
+  min-width:max-content
+}
+
+.event-checkout-total .badge {
+  font-size:11px
+}
+
+.event-status-control {
+  display:grid;
+  gap:8px;
+  max-width:260px;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase
+}
+
+.event-status-control select {
+  width:100%;
+  color:var(--txt);
+  background:#0d0d0d;
+  border:1px solid rgba(246,196,0,.22);
+  border-radius:14px;
+  padding:12px;
+  outline:none;
+  font-weight:850;
+  text-transform:none
 }
 
 .event-meta-grid {
@@ -4792,10 +4827,15 @@ button.ghost:hover {
 button.primary:disabled,
 button.soft:disabled,
 button.ghost:disabled,
-button.danger:disabled {
+button.danger:disabled,
+button[aria-busy="true"] {
   opacity:.55;
   cursor:not-allowed;
   transform:none
+}
+
+button[aria-busy="true"] {
+  filter:saturate(.7)
 }
 
 .form-actions-row .primary,
