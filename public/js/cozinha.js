@@ -298,18 +298,45 @@ function emptyState(tab) {
   `;
 }
 
+function kitchenOrderHeading(order) {
+  const event = isEventOrder(order);
+  const rawTitle = String(event ? eventOrderTitle(order) : order.table || '-').trim();
+
+  if (!event) {
+    return {
+      event,
+      label: txt('cozinha.mesaComanda', 'Mesa/Comanda'),
+      title: rawTitle || '-',
+      code: '',
+      fullTitle: rawTitle || '-',
+    };
+  }
+
+  const code = rawTitle.replace(/^evento\s*/i, '').trim() || order.quoteId || order.id || '';
+
+  return {
+    event,
+    label: 'Evento / orçamento',
+    title: 'Evento',
+    code: code ? `#${String(code).replace(/^#/, '')}` : '',
+    fullTitle: rawTitle || 'Evento',
+  };
+}
+
 function card(order, isNext = false) {
   const cls = 'status-' + order.status;
   const waiting = waitingLabel(order.createdAt);
   const priority = getPriority(order);
+  const heading = kitchenOrderHeading(order);
 
   return `
     <article class="kitchen-card kitchen-pro-card ${cls} priority-${priority.level} ${isNext ? 'next-order' : ''}">
       ${isNext ? '<div class="next-order-label">Próximo pedido para iniciar</div>' : ''}
       <div class="kitchen-card-top">
-        <div>
-          <span class="kitchen-label">${txt('cozinha.mesaComanda', 'Mesa/Comanda')}</span>
-          <h2>${order.table}</h2>
+        <div class="kitchen-order-heading ${heading.event ? 'event-order' : ''}" title="${htmlAttr(heading.fullTitle)}">
+          <span class="kitchen-label">${htmlAttr(heading.label)}</span>
+          <h2>${htmlAttr(heading.title)}</h2>
+          ${heading.code ? `<small>${htmlAttr(heading.code)}</small>` : ''}
         </div>
         <div class="kitchen-card-badges">
           ${order.paid ? '<span class="paid-kitchen-badge">💰 PAGO</span>' : ''}
