@@ -124,6 +124,49 @@ button {
   line-height:1.55
 }
 
+.admin-embedded-shell {
+  width:100%;
+  min-height:calc(100vh - 120px);
+}
+
+.admin-embedded-frame {
+  width:100%;
+  height:calc(100vh - 124px);
+  min-height:720px;
+  display:block;
+  border:0;
+  border-radius:26px;
+  background:#080808;
+  box-shadow:0 20px 58px rgba(0,0,0,.24)
+}
+
+body.embedded-app {
+  background:transparent
+}
+
+body.embedded-app .sidebar,
+body.embedded-app .topbar,
+body.embedded-app .dev-sidebar {
+  display:none!important
+}
+
+body.embedded-app .app-shell {
+  display:block!important;
+  min-height:auto!important
+}
+
+body.embedded-app main {
+  width:100%!important;
+  height:auto!important;
+  min-height:auto!important;
+  overflow:visible!important;
+  padding:0!important
+}
+
+body.embedded-app #content {
+  padding:0
+}
+
 .muted {
   color:var(--muted)
 }

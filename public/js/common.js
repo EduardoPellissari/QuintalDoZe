@@ -1409,7 +1409,16 @@ function setupNav(items) {
     .join('');
 }
 
+function isEmbeddedView() {
+  return new URLSearchParams(location.search).get('embed') === '1';
+}
+
 function applyMobileLayoutClass() {
+  if (isEmbeddedView()) {
+    document.documentElement.classList.remove('mobile-layout');
+    return;
+  }
+
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
   const screenWidth = Number(window.screen?.width || 0);
   const screenHeight = Number(window.screen?.height || 0);
@@ -1433,6 +1442,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.add('app-layout');
   } else {
     document.body.classList.remove('app-layout');
+  }
+
+  if (isEmbeddedView()) {
+    document.body.classList.add('embedded-app');
+    return;
   }
 
   const sidebar = document.querySelector('.sidebar');

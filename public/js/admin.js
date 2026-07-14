@@ -14,8 +14,8 @@ setupNav([
   { type: 'button', tab: 'cash', labelKey: 'menu.caixa' },
   { type: 'button', tab: 'reports', labelKey: 'menu.relatorios' },
   { type: 'group', label: 'Atalhos' },
-  { href: '/garcom.html', labelKey: 'menu.pedidos' },
-  { href: '/cozinha.html', labelKey: 'menu.cozinha' },
+  { type: 'button', tab: 'orders', labelKey: 'menu.pedidos' },
+  { type: 'button', tab: 'kitchen', labelKey: 'menu.cozinha' },
 ]);
 
 setText('areaSmall', txt('admin.area', 'Administração'));
@@ -63,7 +63,20 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
   if (button.dataset.tab === 'quotes') renderQuotes();
   if (button.dataset.tab === 'cash') renderCash();
   if (button.dataset.tab === 'reports') renderReports();
+  if (button.dataset.tab === 'orders') renderEmbeddedAdminPage('Pedidos', 'Crie comandas e envie pedidos para a cozinha.', '/garcom.html?embed=1');
+  if (button.dataset.tab === 'kitchen') renderEmbeddedAdminPage('Cozinha', 'Acompanhe a fila da cozinha dentro do painel admin.', '/cozinha.html?embed=1');
 });
+
+function renderEmbeddedAdminPage(title, subtitle, src) {
+  setText('pageTitle', title);
+  setText('pageSub', subtitle);
+
+  content.innerHTML = `
+    <section class="admin-embedded-shell">
+      <iframe class="admin-embedded-frame" title="${htmlAttr(title)}" src="${src}"></iframe>
+    </section>
+  `;
+}
 
 async function renderUsers() {
   setText('pageTitle', txt('admin.usuarios.titulo', 'Admin Dashboard'));
