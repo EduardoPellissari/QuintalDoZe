@@ -6,7 +6,12 @@
 
 requireRole(['cozinha', 'admin']);
 
-setupNav([{ href: '/cozinha.html', labelKey: 'menu.cozinha', active: true }]);
+setupNav([
+  { href: '/admin.html', label: '⚙️ Admin', roles: ['admin'] },
+  { href: '/garcom.html', labelKey: 'menu.pedidos', roles: ['admin'] },
+  { href: '/cozinha.html', labelKey: 'menu.cozinha', active: true },
+  { href: '/caixa.html', labelKey: 'menu.caixa', roles: ['admin'] },
+]);
 
 setText('areaSmall', txt('cozinha.area', 'Área da cozinha'));
 setText('pageTitle', txt('cozinha.titulo', 'Fila da cozinha'));

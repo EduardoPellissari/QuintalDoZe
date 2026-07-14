@@ -70,15 +70,7 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
     }
 
     setUser(user);
-
-    const routes = {
-      admin: '/admin.html',
-      garcom: '/garcom.html',
-      cozinha: '/cozinha.html',
-      caixa: '/caixa.html',
-    };
-
-    location.href = routes[user.role] || '/';
+    location.href = roleHomeRoute(user.role);
   } catch (err) {
     msg.textContent = err.message;
   }

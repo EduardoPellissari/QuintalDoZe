@@ -1339,6 +1339,27 @@ function statusLabel(status) {
   return txt(`status.${status}`, status);
 }
 
+const ROLE_HOME_ROUTES = {
+  admin: '/admin.html',
+  garcom: '/garcom.html',
+  cozinha: '/cozinha.html',
+  caixa: '/caixa.html',
+};
+
+function isAdmin(user = currentUser()) {
+  return user?.role === 'admin';
+}
+
+function roleHomeRoute(role) {
+  return ROLE_HOME_ROUTES[role] || '/';
+}
+
+function canAccessRoles(roles, user = currentUser()) {
+  if (!user) return false;
+  if (isAdmin(user)) return true;
+  return roles.includes(user.role);
+}
+
 function requireRole(roles) {
   const user = currentUser();
 
@@ -1347,15 +1368,8 @@ function requireRole(roles) {
     return null;
   }
 
-  if (!roles.includes(user.role)) {
-    const routes = {
-      admin: '/admin.html',
-      garcom: '/garcom.html',
-      cozinha: '/cozinha.html',
-      caixa: '/caixa.html',
-    };
-
-    location.href = routes[user.role] || '/';
+  if (!canAccessRoles(roles, user)) {
+    location.href = roleHomeRoute(user.role);
     return null;
   }
 
@@ -1375,7 +1389,10 @@ function setupNav(items) {
   const nav = document.getElementById('sideNav');
   if (!nav) return;
 
+  const user = currentUser();
+
   nav.innerHTML = items
+    .filter((item) => !item.roles || canAccessRoles(item.roles, user))
     .map((item) => {
       const label = item.labelKey ? txt(item.labelKey, item.label || '') : item.label;
 

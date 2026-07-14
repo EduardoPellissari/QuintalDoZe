@@ -6,8 +6,11 @@
 requireRole(['caixa', 'admin']);
 
 setupNav([
+  { href: '/admin.html', label: '⚙️ Admin', roles: ['admin'] },
+  { href: '/garcom.html', labelKey: 'menu.pedidos', roles: ['admin'] },
+  { href: '/cozinha.html', labelKey: 'menu.cozinha', roles: ['admin'] },
   { type: 'button', tab: 'cash', labelKey: 'menu.caixa', active: true },
-  { type: 'button', tab: 'reports', labelKey: 'menu.relatorios' },
+  { type: 'button', tab: 'reports', labelKey: 'menu.relatorios', roles: ['admin'] },
 ]);
 
 setText('areaSmall', txt('caixa.area', 'Área do caixa'));
@@ -24,7 +27,10 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
   document.querySelectorAll('nav button').forEach((item) => item.classList.remove('active'));
   button.classList.add('active');
 
-  if (button.dataset.tab === 'reports') reports();
+  if (button.dataset.tab === 'reports') {
+    if (!isAdmin()) return cash();
+    reports();
+  }
   else cash();
 });
 
@@ -168,6 +174,8 @@ function durationLabel(minutes) {
 }
 
 async function reports() {
+  if (!isAdmin()) return cash();
+
   const [orders, cashSessions, activityLog] = await Promise.all([
     API.get('/api/orders'),
     API.get('/api/cash-sessions?date=' + cashReportDate),

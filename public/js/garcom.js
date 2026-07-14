@@ -5,7 +5,12 @@
 
 requireRole(['garcom', 'admin']);
 
-setupNav([{ href: '/garcom.html', labelKey: 'menu.pedidos', active: true }]);
+setupNav([
+  { href: '/admin.html', label: '⚙️ Admin', roles: ['admin'] },
+  { href: '/garcom.html', labelKey: 'menu.pedidos', active: true },
+  { href: '/cozinha.html', labelKey: 'menu.cozinha', roles: ['admin'] },
+  { href: '/caixa.html', labelKey: 'menu.caixa', roles: ['admin'] },
+]);
 
 setText('areaSmall', txt('garcom.area', 'Área do garçom'));
 setText('pageTitle', txt('garcom.titulo', 'Novo pedido'));
