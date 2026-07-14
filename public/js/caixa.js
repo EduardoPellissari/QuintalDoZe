@@ -17,7 +17,8 @@ setText('areaSmall', txt('caixa.area', 'Área do caixa'));
 setText('pageTitle', txt('caixa.titulo', 'Caixa'));
 setText('pageSub', txt('caixa.subtitulo', 'Fechamento e relatórios.'));
 
-let cashReportDate = todayDateValue();
+let cashReportStartDate = todayDateValue();
+let cashReportEndDate = todayDateValue();
 let selectedCashTable = '';
 let activeCashTab = 'cash';
 let cashLastSignature = '';
@@ -238,10 +239,10 @@ async function reports() {
 
   const [orders, cashSessions, activityLog] = await Promise.all([
     API.get('/api/orders'),
-    API.get('/api/cash-sessions?date=' + cashReportDate),
-    API.get('/api/activity-log?date=' + cashReportDate),
+    API.get('/api/cash-sessions'),
+    API.get('/api/activity-log'),
   ]);
-  const paidOrders = orders.filter((order) => order.paid && localDateValue(order.paidAt || order.createdAt) === cashReportDate);
+  const paidOrders = orders.filter((order) => order.paid && dateInRange(order.paidAt || order.createdAt, cashReportStartDate, cashReportEndDate));
   const total = paidOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
   const items = {};
   const payments = {};
@@ -267,8 +268,11 @@ async function reports() {
   document.getElementById('content').innerHTML = `
     <div class="report-actions">
       <button class="primary print-btn" onclick="printVisibleReportDocument()">${txt('relatorios.botaoPdf', 'Salvar/Imprimir PDF')}</button>
-      <label>Data do relatório
-        <input id="cashReportDate" type="date" value="${cashReportDate}" onchange="setCashReportDate(this.value)">
+      <label>De
+        <input id="cashReportStartDate" type="date" value="${cashReportStartDate}" onchange="setCashReportStartDate(this.value)">
+      </label>
+      <label>Até
+        <input id="cashReportEndDate" type="date" value="${cashReportEndDate}" onchange="setCashReportEndDate(this.value)">
       </label>
     </div>
 
@@ -276,7 +280,7 @@ async function reports() {
       <div class="report-head">
         <div>
           <h1>${txt('relatorios.titulo', 'Relatório Quintal do Zé')}</h1>
-          <p>${txt('relatorios.fechamento', 'Fechamento local')} • ${new Date(`${cashReportDate}T00:00:00`).toLocaleDateString('pt-BR')}</p>
+          <p>${txt('relatorios.fechamento', 'Fechamento local')} • ${reportPeriodLabel(cashReportStartDate, cashReportEndDate)}</p>
         </div>
         <img src="/assets/logo.jpg" alt="Logo Quintal do Zé">
       </div>
@@ -323,13 +327,30 @@ async function reports() {
         </table>
       </div>
 
-      ${advancedReportHtml({ orders, reportDate: cashReportDate, cashSessions, activityLog })}
+      ${advancedReportHtml({
+        orders,
+        reportStartDate: cashReportStartDate,
+        reportEndDate: cashReportEndDate,
+        cashSessions,
+        activityLog,
+      })}
     </section>
   `;
 }
 
+window.setCashReportStartDate = (value) => {
+  cashReportStartDate = value || todayDateValue();
+  reports();
+};
+
+window.setCashReportEndDate = (value) => {
+  cashReportEndDate = value || cashReportStartDate;
+  reports();
+};
+
 window.setCashReportDate = (value) => {
-  cashReportDate = value || todayDateValue();
+  cashReportStartDate = value || todayDateValue();
+  cashReportEndDate = cashReportStartDate;
   reports();
 };
 

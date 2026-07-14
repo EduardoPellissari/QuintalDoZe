@@ -28,7 +28,8 @@ let editingQuote = null;
 let pendingUserAccess = null;
 let quoteProducts = [];
 let quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
-let adminReportDate = todayDateValue();
+let adminReportStartDate = todayDateValue();
+let adminReportEndDate = todayDateValue();
 let selectedAdminCashTable = '';
 let activeAdminTab = 'users';
 let adminCashLastSignature = '';
@@ -507,6 +508,52 @@ function productStatusBadge(product) {
   return 'ok';
 }
 
+function productAvailabilityPanel(products) {
+  const orderProducts = products.filter((product) => productUsageValue(product) === 'orders' && product.active !== false);
+  const available = orderProducts.filter((product) => product.soldOut !== true);
+  const soldOut = orderProducts.filter((product) => product.soldOut === true);
+
+  if (!orderProducts.length) return '';
+
+  return `
+    <section class="panel product-availability-panel">
+      <div class="admin-form-head">
+        <div>
+          <h3>Disponibilidade rápida</h3>
+          <p>Marque itens como esgotados para eles sumirem da tela de pedidos do atendente.</p>
+        </div>
+        <span class="badge ${soldOut.length ? 'warn' : 'ok'}">${soldOut.length} esgotado(s)</span>
+      </div>
+
+      <div class="availability-columns">
+        <div>
+          <h4>Disponíveis</h4>
+          <div class="availability-list">
+            ${available.length ? available.map((product) => `
+              <button class="availability-chip" type="button" onclick="toggleSoldOut(${product.id}, true)">
+                <span>${htmlAttr(product.name)}</span>
+                <b>Esgotar</b>
+              </button>
+            `).join('') : '<p class="muted">Nenhum produto disponível para pedidos.</p>'}
+          </div>
+        </div>
+
+        <div>
+          <h4>Esgotados</h4>
+          <div class="availability-list">
+            ${soldOut.length ? soldOut.map((product) => `
+              <button class="availability-chip sold-out" type="button" onclick="toggleSoldOut(${product.id}, false)">
+                <span>${htmlAttr(product.name)}</span>
+                <b>Disponibilizar</b>
+              </button>
+            `).join('') : '<p class="muted">Nenhum item esgotado agora.</p>'}
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 async function renderProducts() {
   setText('pageTitle', txt('admin.produtos.titulo', 'Produtos'));
   setText('pageSub', 'Separe os produtos do atendente e os itens usados somente nos orçamentos.');
@@ -524,6 +571,8 @@ async function renderProducts() {
       <div class="dash-card"><b>${quoteOnlyProducts.length}</b><span>Orçamentos</span></div>
       <div class="dash-card"><b>${soldOutProducts}</b><span>Esgotados</span></div>
     </section>
+
+    ${productAvailabilityPanel(products)}
 
     <div class="admin-layout admin-products">
       <section class="panel admin-form-large">
@@ -982,12 +1031,58 @@ function quoteCard(quote) {
       <div class="actions" style="margin-top:12px">
         <button class="soft" onclick="editQuote(${quote.id})">Editar</button>
         <button class="soft" onclick="printQuote(${quote.id})">Gerar PDF</button>
+        <button class="soft whatsapp-action" onclick="sendQuoteWhatsapp(${quote.id})">WhatsApp</button>
         ${quote.convertedOrderId ? `<span class="badge ok">Pedido #${quote.convertedOrderId}</span>` : `<button class="primary compact-action" onclick="approveQuote(${quote.id})">Aprovar e enviar</button>`}
         <button class="danger" onclick="deleteQuote(${quote.id})">Excluir</button>
       </div>
     </article>
   `;
 }
+
+function whatsappPhoneUrl(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const withCountry = digits.startsWith('55') ? digits : `55${digits}`;
+  return `https://wa.me/${withCountry}`;
+}
+
+function quoteWhatsappMessage(quote) {
+  const lines = [
+    `Olá, ${quote.clientName}! Tudo bem?`,
+    '',
+    'Segue o resumo do orçamento do Quintal do Zé:',
+    `Evento: ${quote.eventType || '-'}`,
+    quote.eventDate ? `Data: ${quoteDate(quote.eventDate)}` : '',
+    quote.eventTime ? `Horário: ${quote.eventTime}` : '',
+    quote.guests ? `Pessoas: ${quote.guests}` : '',
+    quote.location ? `Local: ${quote.location}` : '',
+    '',
+    'Itens:',
+    ...(quote.items || []).map((item) => `- ${Number(item.qty || 0)}x ${item.description} (${money(Number(item.qty || 0) * Number(item.unitPrice || 0))})`),
+    '',
+    `Total: ${money(quote.total)}`,
+    '',
+    'Se estiver tudo certo, podemos confirmar por aqui.',
+  ];
+
+  return lines.filter((line) => line !== '').join('\n');
+}
+
+window.sendQuoteWhatsapp = async (id) => {
+  const quotes = await API.get('/api/quotes');
+  const quote = quotes.find((item) => Number(item.id) === Number(id));
+  if (!quote) return toast('Orçamento não encontrado.');
+
+  const message = quoteWhatsappMessage(quote);
+  const phoneUrl = whatsappPhoneUrl(quote.phone);
+
+  if (!phoneUrl) {
+    const copied = await copyText(message).catch(() => false);
+    return toast(copied ? 'Mensagem copiada. Cadastre um telefone para abrir o WhatsApp direto.' : 'Cadastre o telefone do cliente para abrir o WhatsApp.');
+  }
+
+  window.open(`${phoneUrl}?text=${encodeURIComponent(message)}`, '_blank');
+};
 
 async function saveQuote(event) {
   event.preventDefault();
@@ -1325,10 +1420,10 @@ async function renderReports() {
 
   const [orders, cashSessions, activityLog] = await Promise.all([
     API.get('/api/orders'),
-    API.get('/api/cash-sessions?date=' + adminReportDate),
-    API.get('/api/activity-log?date=' + adminReportDate),
+    API.get('/api/cash-sessions'),
+    API.get('/api/activity-log'),
   ]);
-  const paidOrders = orders.filter((order) => order.paid && localDateValue(order.paidAt || order.createdAt) === adminReportDate);
+  const paidOrders = orders.filter((order) => order.paid && dateInRange(order.paidAt || order.createdAt, adminReportStartDate, adminReportEndDate));
   const total = paidOrders.reduce((sum, order) => sum + orderFinalTotal(order), 0);
   const items = {};
   const payments = {};
@@ -1354,8 +1449,11 @@ async function renderReports() {
   content.innerHTML = `
     <div class="report-actions">
       <button class="primary print-btn" onclick="printVisibleReportDocument()">${txt('relatorios.botaoPdf', 'Salvar/Imprimir PDF')}</button>
-      <label>Data do relatório
-        <input id="adminReportDate" type="date" value="${adminReportDate}" onchange="setAdminReportDate(this.value)">
+      <label>De
+        <input id="adminReportStartDate" type="date" value="${adminReportStartDate}" onchange="setAdminReportStartDate(this.value)">
+      </label>
+      <label>Até
+        <input id="adminReportEndDate" type="date" value="${adminReportEndDate}" onchange="setAdminReportEndDate(this.value)">
       </label>
     </div>
 
@@ -1363,7 +1461,7 @@ async function renderReports() {
       <div class="report-head">
         <div>
           <h1>${txt('relatorios.titulo', 'Relatório Quintal do Zé')}</h1>
-          <p>${txt('relatorios.fechamento', 'Fechamento local')} • ${new Date(`${adminReportDate}T00:00:00`).toLocaleDateString('pt-BR')}</p>
+          <p>${txt('relatorios.fechamento', 'Fechamento local')} • ${reportPeriodLabel(adminReportStartDate, adminReportEndDate)}</p>
         </div>
         <img src="/assets/logo.jpg" alt="Logo Quintal do Zé">
       </div>
@@ -1410,13 +1508,30 @@ async function renderReports() {
         </table>
       </div>
 
-      ${advancedReportHtml({ orders, reportDate: adminReportDate, cashSessions, activityLog })}
+      ${advancedReportHtml({
+        orders,
+        reportStartDate: adminReportStartDate,
+        reportEndDate: adminReportEndDate,
+        cashSessions,
+        activityLog,
+      })}
     </section>
   `;
 }
 
+window.setAdminReportStartDate = (value) => {
+  adminReportStartDate = value || todayDateValue();
+  renderReports();
+};
+
+window.setAdminReportEndDate = (value) => {
+  adminReportEndDate = value || adminReportStartDate;
+  renderReports();
+};
+
 window.setAdminReportDate = (value) => {
-  adminReportDate = value || todayDateValue();
+  adminReportStartDate = value || todayDateValue();
+  adminReportEndDate = adminReportStartDate;
   renderReports();
 };
 

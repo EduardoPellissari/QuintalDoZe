@@ -89,6 +89,34 @@ function localDateValue(value) {
   return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
 }
 
+function normalizedDateValue(value) {
+  const raw = String(value || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return localDateValue(value);
+}
+
+function dateInRange(value, startDate, endDate) {
+  const date = normalizedDateValue(value);
+  if (!date) return false;
+
+  const start = startDate || endDate || date;
+  const end = endDate || startDate || date;
+  const from = start <= end ? start : end;
+  const to = start <= end ? end : start;
+
+  return date >= from && date <= to;
+}
+
+function reportPeriodLabel(startDate, endDate) {
+  const start = startDate || endDate || todayDateValue();
+  const end = endDate || start;
+  const from = start <= end ? start : end;
+  const to = start <= end ? end : start;
+  const format = (value) => new Date(`${value}T00:00:00`).toLocaleDateString('pt-BR');
+
+  return from === to ? format(from) : `${format(from)} a ${format(to)}`;
+}
+
 const TOTAL_TABLES = 30;
 
 function configuredRestaurantTables() {
@@ -350,8 +378,14 @@ function updatePaymentPreview(id, scope) {
   const total = Math.max(subtotal + serviceFee - discount, 0);
   const totalElement = document.getElementById(paymentFieldId(id, scope, 'total'));
   const splitElement = document.getElementById(paymentFieldId(id, scope, 'splitTotal'));
+  const splitHelpElement = document.getElementById(paymentFieldId(id, scope, 'splitHelp'));
   if (totalElement) totalElement.textContent = money(total);
   if (splitElement) splitElement.textContent = `${splitCount}x de ${money(total / splitCount)}`;
+  if (splitHelpElement) {
+    splitHelpElement.textContent = splitCount > 1
+      ? `Conta dividida em ${splitCount} pessoa(s): ${money(total / splitCount)} para cada.`
+      : 'Sem divisão por pessoa. Use os botões rápidos se o cliente quiser dividir.';
+  }
 }
 
 function bindPaymentControls(scope) {
@@ -370,6 +404,13 @@ function paymentBodyFromControls(id, scope) {
     paymentSplitCount: Math.max(Number(document.getElementById(paymentFieldId(id, scope, 'split'))?.value || 1), 1),
   };
 }
+
+window.setPaymentSplit = (scope, id, count) => {
+  const input = document.getElementById(paymentFieldId(id, scope, 'split'));
+  if (!input) return;
+  input.value = count;
+  updatePaymentPreview(id, scope);
+};
 
 function isEventOrder(order) {
   return order?.source === 'quote' || Boolean(order?.quoteId) || /^evento\b/i.test(String(order?.table || ''));
@@ -480,6 +521,12 @@ function tablePaymentControls(table, subtotal, scope) {
 
         <label>Dividir por pessoas
           <input id="${paymentFieldId(key, scope, 'split')}" class="payment-control" data-order="${key}" data-scope="${scope}" type="number" min="1" step="1" value="1">
+          <span class="split-help-text" id="${paymentFieldId(key, scope, 'splitHelp')}">Sem divisão por pessoa. Use os botões rápidos se o cliente quiser dividir.</span>
+          <span class="split-quick-buttons">
+            ${[2, 3, 4, 5].map((count) => `
+              <button type="button" onclick="setPaymentSplit('${scope}', '${key}', ${count})">${count}x</button>
+            `).join('')}
+          </span>
         </label>
       </div>
 
@@ -510,6 +557,98 @@ function tableTransferBodyFromControls(table, scope) {
     fromTable: tableKey(table),
     toTable: document.getElementById(tableTransferFieldId(table, scope))?.value || '',
   };
+}
+
+function groupedTableItems(group) {
+  const rows = new Map();
+
+  (group?.orders || []).forEach((order) => {
+    (order.items || []).forEach((item) => {
+      const key = [
+        item.name || 'Item',
+        Number(itemUnitPrice(item) || 0).toFixed(2),
+        item.note || '',
+      ].join('|');
+
+      const current = rows.get(key) || {
+        name: item.name || 'Item',
+        note: item.note || '',
+        qty: 0,
+        unitPrice: itemUnitPrice(item),
+        total: 0,
+      };
+
+      current.qty += Number(item.qty || 1);
+      current.total += itemLineTotal(item);
+      rows.set(key, current);
+    });
+  });
+
+  return Array.from(rows.values()).sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
+}
+
+function tableSplitSummary(group) {
+  const rows = groupedTableItems(group);
+  if (!rows.length) return '';
+
+  return `
+    <details class="split-by-items-box">
+      <summary>Dividir por itens consumidos</summary>
+      <p>Use esta lista para conferir rapidamente quem consumiu cada item antes de fechar a conta.</p>
+      <div class="split-items-list">
+        ${rows.map((item) => `
+          <div>
+            <span>
+              <b>${Number(item.qty || 1)}x ${htmlAttr(item.name)}</b>
+              ${item.note ? `<small>${htmlAttr(item.note)}</small>` : ''}
+            </span>
+            <strong>${money(item.total)}</strong>
+          </div>
+        `).join('')}
+      </div>
+    </details>
+  `;
+}
+
+function orderHistoryRows(order) {
+  const rows = [
+    { label: 'Pedido criado', value: order?.createdAt },
+    { label: 'Preparo iniciado', value: order?.startedAt },
+    { label: 'Marcado como pronto', value: order?.readyAt },
+    { label: 'Entregue/fechado', value: order?.deliveredAt },
+    { label: 'Pagamento registrado', value: order?.paidAt },
+    { label: 'Cancelado', value: order?.canceledAt, extra: order?.cancelReason ? `Motivo: ${order.cancelReason}` : '' },
+  ].filter((row) => row.value);
+
+  (order?.tableMoves || []).forEach((move) => {
+    rows.push({
+      label: 'Mesa/comanda movida',
+      value: move.movedAt,
+      extra: `${move.fromTable} para ${move.toTable}`,
+    });
+  });
+
+  return rows.sort((a, b) => new Date(a.value) - new Date(b.value));
+}
+
+function orderHistoryTimeline(order) {
+  const rows = orderHistoryRows(order);
+  if (!rows.length) return '';
+
+  return `
+    <details class="order-history-box">
+      <summary>Histórico da comanda</summary>
+      <div class="order-history-list">
+        ${rows.map((row) => `
+          <div>
+            <span>${htmlAttr(row.label)}</span>
+            <b>${dateTime(row.value)}</b>
+            ${row.extra ? `<small>${htmlAttr(row.extra)}</small>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </details>
+  `;
 }
 
 function tableSummaryCards(openOrders, selectedTable, selectFunctionName) {
@@ -685,6 +824,7 @@ function tableCheckoutPanel(openOrders, selectedTable, scope, closeFunctionName,
             `).join('')}
 
             ${order.notes ? `<p class="muted" style="margin:8px 0 0">Obs.: ${htmlAttr(order.notes)}</p>` : ''}
+            ${orderHistoryTimeline(order)}
 
             <div class="actions" style="margin-top:10px">
               <button class="danger" type="button" onclick="${cancelFunctionName}(${order.id})">Cancelar pedido</button>
@@ -694,6 +834,7 @@ function tableCheckoutPanel(openOrders, selectedTable, scope, closeFunctionName,
       </div>
 
       ${tablePaymentControls(group.table, group.subtotal, scope)}
+      ${tableSplitSummary(group)}
       ${tableTransferControls(group.table, scope, transferFunctionName)}
 
       <div class="table-final-actions">
@@ -746,6 +887,8 @@ function eventCheckoutPanel(eventOrders, scope, closeFunctionName, cancelFunctio
                     <b>${money(itemLineTotal(item))}</b>
                   </div>
                 `).join('')}
+
+                ${orderHistoryTimeline(order)}
               </div>
             </div>
 
@@ -999,9 +1142,11 @@ function cashSessionCloseBody(scope) {
   };
 }
 
-function advancedReportHtml({ orders, reportDate, cashSessions = [], activityLog = [] }) {
-  const paidOrders = orders.filter((order) => order.paid && localDateValue(order.paidAt || order.createdAt) === reportDate);
-  const canceledOrders = orders.filter((order) => order.status === 'cancelado' && localDateValue(order.canceledAt || order.createdAt) === reportDate);
+function advancedReportHtml({ orders, reportDate, reportStartDate, reportEndDate, cashSessions = [], activityLog = [] }) {
+  const startDate = reportStartDate || reportDate || todayDateValue();
+  const endDate = reportEndDate || startDate;
+  const paidOrders = orders.filter((order) => order.paid && dateInRange(order.paidAt || order.createdAt, startDate, endDate));
+  const canceledOrders = orders.filter((order) => order.status === 'cancelado' && dateInRange(order.canceledAt || order.createdAt, startDate, endDate));
   const waiterStats = {};
   const productRevenue = {};
 
@@ -1021,7 +1166,8 @@ function advancedReportHtml({ orders, reportDate, cashSessions = [], activityLog
 
   const waiterRows = Object.entries(waiterStats).sort((a, b) => b[1].total - a[1].total);
   const productRows = Object.entries(productRevenue).sort((a, b) => b[1].total - a[1].total).slice(0, 8);
-  const sessionRows = cashSessions.filter((session) => session.date === reportDate);
+  const sessionRows = cashSessions.filter((session) => dateInRange(session.date || session.openedAt, startDate, endDate));
+  const logRows = activityLog.filter((entry) => dateInRange(entry.createdAt, startDate, endDate));
 
   return `
     <h2>Vendas por garçom</h2>
@@ -1069,7 +1215,7 @@ function advancedReportHtml({ orders, reportDate, cashSessions = [], activityLog
       <table class="table">
         <thead><tr><th>Horário</th><th>Ação</th><th>Tipo</th></tr></thead>
         <tbody>
-          ${activityLog.length ? activityLog.slice(0, 12).map((entry) => `<tr><td>${dateTime(entry.createdAt)}</td><td>${htmlAttr(entry.message)}</td><td>${htmlAttr(entry.type)}</td></tr>`).join('') : '<tr><td colspan="3">Sem histórico nesta data.</td></tr>'}
+          ${logRows.length ? logRows.slice(0, 12).map((entry) => `<tr><td>${dateTime(entry.createdAt)}</td><td>${htmlAttr(entry.message)}</td><td>${htmlAttr(entry.type)}</td></tr>`).join('') : '<tr><td colspan="3">Sem histórico neste período.</td></tr>'}
         </tbody>
       </table>
     </div>
