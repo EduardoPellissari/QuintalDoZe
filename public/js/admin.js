@@ -1052,7 +1052,9 @@ function quotePdfUrl(id, download = false) {
 
 function quoteWhatsappMessage(quote) {
   const clientName = String(quote.clientName || '').trim() || 'tudo bem';
-  return `Bom dia, ${clientName}! Segue seu orçamento do seu almoço.`;
+  const eventType = String(quote.eventType || '').trim().toLowerCase();
+  const subject = eventType ? `de ${eventType}` : 'solicitado';
+  return `Bom dia, ${clientName}! Segue seu orçamento ${subject}.`;
 }
 
 function openQuotePdfTab(quote) {
