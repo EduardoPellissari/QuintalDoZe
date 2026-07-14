@@ -44,11 +44,27 @@ const productUsageOptions = [
   { value: 'quotes', label: 'Orçamentos' },
 ];
 
+const embeddedAdminPages = {
+  orders: {
+    title: 'Pedidos',
+    subtitle: 'Crie comandas e envie pedidos para a cozinha.',
+    src: '/garcom.html?embed=1',
+  },
+  kitchen: {
+    title: 'Cozinha',
+    subtitle: 'Acompanhe a fila da cozinha dentro do painel admin.',
+    src: '/cozinha.html?embed=1',
+  },
+};
+
 const content = document.getElementById('content');
+let embeddedPreloadStarted = false;
 
 document.getElementById('sideNav').addEventListener('click', (event) => {
   const button = event.target.closest('button[data-tab]');
   if (!button) return;
+
+  stashEmbeddedAdminFrames();
 
   document.querySelectorAll('nav button').forEach((item) => item.classList.remove('active'));
   button.classList.add('active');
@@ -63,19 +79,82 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
   if (button.dataset.tab === 'quotes') renderQuotes();
   if (button.dataset.tab === 'cash') renderCash();
   if (button.dataset.tab === 'reports') renderReports();
-  if (button.dataset.tab === 'orders') renderEmbeddedAdminPage('Pedidos', 'Crie comandas e envie pedidos para a cozinha.', '/garcom.html?embed=1');
-  if (button.dataset.tab === 'kitchen') renderEmbeddedAdminPage('Cozinha', 'Acompanhe a fila da cozinha dentro do painel admin.', '/cozinha.html?embed=1');
+  if (button.dataset.tab === 'orders') renderEmbeddedAdminPage('orders');
+  if (button.dataset.tab === 'kitchen') renderEmbeddedAdminPage('kitchen');
 });
 
-function renderEmbeddedAdminPage(title, subtitle, src) {
-  setText('pageTitle', title);
-  setText('pageSub', subtitle);
+function embeddedFrameCache() {
+  let cache = document.getElementById('adminEmbeddedCache');
+  if (!cache) {
+    cache = document.createElement('div');
+    cache.id = 'adminEmbeddedCache';
+    cache.className = 'admin-embedded-cache';
+    document.body.appendChild(cache);
+  }
+  return cache;
+}
+
+function ensureEmbeddedAdminFrame(key) {
+  const page = embeddedAdminPages[key];
+  const cache = embeddedFrameCache();
+  let frame = document.getElementById(`adminEmbeddedFrame-${key}`);
+
+  if (!frame) {
+    frame = document.createElement('iframe');
+    frame.id = `adminEmbeddedFrame-${key}`;
+    frame.className = 'admin-embedded-frame';
+    frame.title = page.title;
+    frame.loading = 'eager';
+    frame.src = page.src;
+    frame.dataset.loaded = 'false';
+    frame.addEventListener('load', () => {
+      frame.dataset.loaded = 'true';
+      frame.closest('.admin-embedded-shell')?.classList.add('loaded');
+    });
+    cache.appendChild(frame);
+  }
+
+  return frame;
+}
+
+function stashEmbeddedAdminFrames() {
+  const cache = embeddedFrameCache();
+  content.querySelectorAll('.admin-embedded-frame').forEach((frame) => cache.appendChild(frame));
+}
+
+function preloadEmbeddedAdminPages() {
+  if (embeddedPreloadStarted) return;
+  embeddedPreloadStarted = true;
+
+  const preload = () => {
+    ensureEmbeddedAdminFrame('orders');
+    ensureEmbeddedAdminFrame('kitchen');
+  };
+
+  if ('requestIdleCallback' in window) requestIdleCallback(preload, { timeout: 1800 });
+  else setTimeout(preload, 700);
+}
+
+function renderEmbeddedAdminPage(key) {
+  const page = embeddedAdminPages[key];
+  if (!page) return;
+
+  setText('pageTitle', page.title);
+  setText('pageSub', page.subtitle);
+
+  stashEmbeddedAdminFrames();
+  const frame = ensureEmbeddedAdminFrame(key);
 
   content.innerHTML = `
-    <section class="admin-embedded-shell">
-      <iframe class="admin-embedded-frame" title="${htmlAttr(title)}" src="${src}"></iframe>
+    <section class="admin-embedded-shell ${frame.dataset.loaded === 'true' ? 'loaded' : ''}" id="adminEmbeddedShell">
+      <div class="admin-embedded-loading">
+        <b>Carregando ${htmlAttr(page.title)}...</b>
+        <span>Essa tela ficará rápida depois do primeiro carregamento.</span>
+      </div>
     </section>
   `;
+
+  document.getElementById('adminEmbeddedShell').appendChild(frame);
 }
 
 async function renderUsers() {
@@ -1270,3 +1349,4 @@ window.adminCancelOrder = async (id) => {
 };
 
 renderUsers();
+preloadEmbeddedAdminPages();

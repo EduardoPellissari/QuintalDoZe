@@ -127,6 +127,43 @@ button {
 .admin-embedded-shell {
   width:100%;
   min-height:calc(100vh - 120px);
+  position:relative;
+  overflow:hidden;
+  border-radius:26px;
+  background:#080808;
+  box-shadow:0 20px 58px rgba(0,0,0,.24);
+}
+
+.admin-embedded-cache {
+  display:none!important
+}
+
+.admin-embedded-loading {
+  position:absolute;
+  inset:0;
+  z-index:1;
+  display:grid;
+  place-content:center;
+  gap:8px;
+  text-align:center;
+  color:var(--txt);
+  background:radial-gradient(circle at center,rgba(246,196,0,.12),rgba(8,8,8,.96) 56%);
+  border:1px solid rgba(246,196,0,.16);
+  border-radius:26px
+}
+
+.admin-embedded-loading b {
+  color:var(--gold);
+  font-size:20px
+}
+
+.admin-embedded-loading span {
+  color:var(--muted);
+  font-weight:800
+}
+
+.admin-embedded-shell.loaded .admin-embedded-loading {
+  display:none
 }
 
 .admin-embedded-frame {
@@ -136,8 +173,7 @@ button {
   display:block;
   border:0;
   border-radius:26px;
-  background:#080808;
-  box-shadow:0 20px 58px rgba(0,0,0,.24)
+  background:#080808
 }
 
 body.embedded-app {
