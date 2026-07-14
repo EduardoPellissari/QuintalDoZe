@@ -3549,11 +3549,17 @@ textarea {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-top: 20px;
-  align-items: start;
+  align-items: stretch;
+  min-height: 0;
 }
 
 .kitchen-column {
-  min-height: 520px;
+  height: min(680px, calc(100vh - 250px));
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
   padding: 14px;
   border-radius: 22px;
   background: rgba(8, 8, 8, 0.72);
@@ -3573,6 +3579,7 @@ textarea {
 }
 
 .column-header {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -3599,9 +3606,29 @@ textarea {
 }
 
 .orders-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: 6px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.orders-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.orders-list::-webkit-scrollbar-track {
+  background: rgba(255,255,255,.045);
+  border-radius: 999px;
+}
+
+.orders-list::-webkit-scrollbar-thumb {
+  background: rgba(246,196,0,.38);
+  border-radius: 999px;
 }
 
 .empty-column {

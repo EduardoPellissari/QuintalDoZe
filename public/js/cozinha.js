@@ -21,7 +21,6 @@ let lastIds = new Set();
 let soundEnabled = false;
 let urgentNotifiedIds = new Set();
 let kitchenOptionsOpen = false;
-let showAllReady = false;
 
 function playTone(frequency = 880, duration = 180, volume = 0.08) {
   if (!soundEnabled) return;
@@ -172,9 +171,6 @@ async function render() {
   const pendentes = orderByPriority(orders.filter((order) => order.status === 'pendente'));
   const preparando = orderByPriority(orders.filter((order) => order.status === 'preparando'));
   const prontos = orderByPriority(orders.filter((order) => order.status === 'pronto'));
-  const readyLimit = 4;
-  const visibleProntos = showAllReady ? prontos : prontos.slice(0, readyLimit);
-  const hiddenReadyCount = Math.max(prontos.length - visibleProntos.length, 0);
 
   document.getElementById('content').innerHTML = `
     <section class="kitchen-dashboard kitchen-pro-dashboard">
@@ -229,13 +225,11 @@ async function render() {
               <p class="muted">${txt('cozinha.abaProntosSub', 'Pedidos prontos para retirada')}</p>
             </div>
             <div class="column-header-actions">
-              ${prontos.length > readyLimit ? `<button class="soft column-toggle" type="button" onclick="toggleReadyList()">${showAllReady ? 'Mostrar menos' : `Mostrar todos (${prontos.length})`}</button>` : ''}
               <strong>${prontos.length}</strong>
             </div>
           </div>
           <div class="orders-list">
-            ${visibleProntos.length ? visibleProntos.map(card).join('') : emptyColumn('Nenhum pedido pronto')}
-            ${hiddenReadyCount ? `<div class="ready-hidden-note">${hiddenReadyCount} pedido(s) pronto(s) ocultos para manter a tela limpa.</div>` : ''}
+            ${prontos.length ? prontos.map(card).join('') : emptyColumn('Nenhum pedido pronto')}
           </div>
         </div>
       </section>
@@ -371,10 +365,6 @@ async function statusOrder(id, status) {
 }
 
 window.statusOrder = statusOrder;
-window.toggleReadyList = () => {
-  showAllReady = !showAllReady;
-  render();
-};
 
 render();
 setInterval(render, 1000);
