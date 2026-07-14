@@ -3642,7 +3642,7 @@ textarea {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  padding-right: 6px;
+  padding: 8px 6px 12px 2px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -3716,8 +3716,15 @@ textarea {
 }
 
 @keyframes kitchenUrgentPulse {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
+  0%, 100% {
+    filter: brightness(1);
+    transform: translateY(0);
+  }
+
+  50% {
+    filter: brightness(1.06);
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 1100px) {
