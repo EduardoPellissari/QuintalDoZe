@@ -133,6 +133,7 @@ function isToday(dateValue) {
 function isKitchenVisibleToday(order) {
   return (
     isToday(order.createdAt) &&
+    !isEventOrder(order) &&
     order.status !== 'cancelado' &&
     order.status !== 'entregue'
   );

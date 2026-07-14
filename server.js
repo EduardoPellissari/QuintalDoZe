@@ -171,8 +171,12 @@ function isOpenOrder(order) {
   return !order.paid && order.status !== 'cancelado';
 }
 
+function isEventOrder(order) {
+  return order?.source === 'quote' || Boolean(order?.quoteId) || /^evento\b/i.test(String(order?.table || ''));
+}
+
 function isKitchenOrder(order) {
-  return !['cancelado', 'entregue'].includes(order.status);
+  return !isEventOrder(order) && !['cancelado', 'entregue'].includes(order.status);
 }
 
 function filterOrdersForRequest(orders, query = {}) {
