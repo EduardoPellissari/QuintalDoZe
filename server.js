@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const PDFDocument = require('pdfkit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -529,6 +530,234 @@ function quoteBody(body, existingQuote = null) {
   };
 }
 
+function moneyBR(value) {
+  return Number(value || 0).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  });
+}
+
+function quoteDateBR(value) {
+  if (!value) return '-';
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('pt-BR');
+}
+
+function quotePdfFileName(quote) {
+  const client = String(quote.clientName || 'cliente')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 42) || 'cliente';
+
+  return `orcamento-quintal-do-ze-${quote.id}-${client}.pdf`;
+}
+
+function drawInfoBox(doc, x, y, width, height, label, value) {
+  doc
+    .roundedRect(x, y, width, height, 11)
+    .fillAndStroke('#fff6da', '#e7cd7a');
+  doc
+    .fillColor('#6d5f3e')
+    .font('Helvetica-Bold')
+    .fontSize(7.5)
+    .text(String(label || '').toUpperCase(), x + 10, y + 9, { width: width - 20 });
+  doc
+    .fillColor('#171511')
+    .font('Helvetica-Bold')
+    .fontSize(11)
+    .text(String(value || '-'), x + 10, y + 24, {
+      width: width - 20,
+      height: height - 30,
+      ellipsis: true
+    });
+}
+
+function drawQuotePdfHeader(doc, quote, quoteNumber) {
+  const logoPath = path.join(__dirname, 'public', 'assets', 'logo.jpg');
+  const x = 36;
+  const y = 34;
+  const width = doc.page.width - 72;
+
+  doc.rect(0, 0, doc.page.width, doc.page.height).fill('#fff7df');
+  doc
+    .roundedRect(x, y, width, 104, 19)
+    .fillAndStroke('#11100d', '#f6c400');
+
+  if (fs.existsSync(logoPath)) {
+    doc.image(logoPath, x + 18, y + 18, { fit: [68, 68] });
+  } else {
+    doc
+      .roundedRect(x + 18, y + 18, 68, 68, 14)
+      .fill('#f6c400');
+  }
+
+  doc
+    .roundedRect(x + 102, y + 19, 116, 17, 8)
+    .fill('#f6c400')
+    .fillColor('#171511')
+    .font('Helvetica-Bold')
+    .fontSize(7.5)
+    .text('PROPOSTA COMERCIAL', x + 112, y + 24);
+
+  doc
+    .fillColor('#fff4c2')
+    .font('Helvetica-Bold')
+    .fontSize(23)
+    .text('Orçamento Quintal', x + 102, y + 40, { width: width - 286, lineBreak: false });
+  doc
+    .fontSize(23)
+    .text('do Zé', x + 102, y + 64, { width: width - 286, lineBreak: false });
+  doc
+    .fillColor('#dfd2ad')
+    .font('Helvetica')
+    .fontSize(8.5)
+    .text('Café da tarde, happy hour, coffee break e eventos personalizados.', x + 102, y + 89, { width: width - 238, lineBreak: false });
+
+  doc
+    .fillColor('#cfc3a4')
+    .font('Helvetica-Bold')
+    .fontSize(8)
+    .text('ORÇAMENTO', x + width - 152, y + 28, { width: 130, align: 'right' });
+  doc
+    .fillColor('#f6c400')
+    .fontSize(20)
+    .text(`#${quoteNumber}`, x + width - 152, y + 45, { width: 130, align: 'right' });
+
+  return y + 128;
+}
+
+function drawQuotePdf(quote, stream) {
+  const doc = new PDFDocument({ size: 'A4', margin: 36 });
+  const quoteNumber = String(quote.id || '').slice(-6).padStart(4, '0');
+  const pageWidth = doc.page.width;
+  const left = 36;
+  const contentWidth = pageWidth - 72;
+  const columnGap = 12;
+  const columnWidth = (contentWidth - columnGap) / 2;
+  doc.pipe(stream);
+  let y = drawQuotePdfHeader(doc, quote, quoteNumber);
+
+  const info = [
+    ['Cliente', quote.clientName || '-'],
+    ['Contato', quote.phone || '-'],
+    ['Evento', quote.eventType || '-'],
+    ['Status', quote.status || 'rascunho'],
+    ['Data', quoteDateBR(quote.eventDate)],
+    ['Horário', quote.eventTime || '-'],
+    ['Pessoas', quote.guests ? `${quote.guests}` : '-'],
+    ['Local', quote.location || '-'],
+  ];
+
+  info.forEach(([label, value], index) => {
+    const col = index % 2;
+    const row = Math.floor(index / 2);
+    drawInfoBox(doc, left + col * (columnWidth + columnGap), y + row * 58, columnWidth, 48, label, value);
+  });
+
+  y += 252;
+
+  if (quote.notes) {
+    doc
+      .roundedRect(left, y, contentWidth, 52, 12)
+      .fillAndStroke('#fff0bd', '#e7cd7a');
+    doc
+      .fillColor('#6d5f3e')
+      .font('Helvetica-Bold')
+      .fontSize(8)
+      .text('OBSERVAÇÕES', left + 12, y + 10);
+    doc
+      .fillColor('#171511')
+      .font('Helvetica')
+      .fontSize(10)
+      .text(String(quote.notes), left + 12, y + 24, { width: contentWidth - 24, height: 22, ellipsis: true });
+    y += 70;
+  }
+
+  doc
+    .fillColor('#171511')
+    .font('Helvetica-Bold')
+    .fontSize(18)
+    .text('Itens do orçamento', left, y);
+  y += 30;
+
+  const tableTop = y;
+  doc
+    .roundedRect(left, tableTop, contentWidth, 28, 10)
+    .fill('#f6c400');
+  doc
+    .fillColor('#171511')
+    .font('Helvetica-Bold')
+    .fontSize(8)
+    .text('ITEM', left + 12, tableTop + 10, { width: 235 })
+    .text('QTD.', left + 285, tableTop + 10, { width: 46, align: 'right' })
+    .text('VALOR UNIT.', left + 350, tableTop + 10, { width: 76, align: 'right' })
+    .text('TOTAL', left + 440, tableTop + 10, { width: 66, align: 'right' });
+
+  y = tableTop + 34;
+
+  (quote.items || []).forEach((item) => {
+    if (y > 698) {
+      doc.addPage();
+      doc.rect(0, 0, doc.page.width, doc.page.height).fill('#fff7df');
+      y = 42;
+    }
+
+    const qty = Number(item.qty || 0);
+    const unitPrice = Number(item.unitPrice || 0);
+    const total = qty * unitPrice;
+    const descriptionHeight = doc.heightOfString(String(item.description || 'Item'), { width: 235 });
+    const rowHeight = Math.max(34, descriptionHeight + 18);
+
+    doc
+      .roundedRect(left, y, contentWidth, rowHeight, 9)
+      .fillAndStroke('#fffaf0', '#ead391');
+    doc
+      .fillColor('#171511')
+      .font('Helvetica')
+      .fontSize(10)
+      .text(String(item.description || 'Item'), left + 12, y + 10, { width: 235 });
+    doc
+      .font('Helvetica-Bold')
+      .text(qty, left + 285, y + 10, { width: 46, align: 'right' })
+      .text(moneyBR(unitPrice), left + 350, y + 10, { width: 76, align: 'right' })
+      .text(moneyBR(total), left + 440, y + 10, { width: 66, align: 'right' });
+
+    y += rowHeight + 6;
+  });
+
+  y += 8;
+  if (y > 700) {
+    doc.addPage();
+    doc.rect(0, 0, doc.page.width, doc.page.height).fill('#fff7df');
+    y = 42;
+  }
+
+  doc
+    .roundedRect(left, y, contentWidth, 54, 14)
+    .fillAndStroke('#11100d', '#f6c400');
+  doc
+    .fillColor('#e7dcc2')
+    .font('Helvetica-Bold')
+    .fontSize(12)
+    .text('Total do orçamento', left + 220, y + 20, { width: 170, align: 'right' });
+  doc
+    .fillColor('#f6c400')
+    .fontSize(22)
+    .text(moneyBR(quote.total), left + 400, y + 16, { width: 108, align: 'right' });
+
+  y += 78;
+  doc
+    .fillColor('#7b6d51')
+    .font('Helvetica')
+    .fontSize(8)
+    .text('Quintal do Zé', left, y)
+    .text('Documento gerado pelo sistema de pedidos.', left, y, { width: contentWidth, align: 'right' });
+
+  doc.end();
+}
+
 app.get('/api/quotes', asyncHandler(async (req, res) => {
   const db = await readDb();
   res.json(db.quotes);
@@ -568,6 +797,18 @@ app.delete('/api/quotes/:id', asyncHandler(async (req, res) => {
   if (quote) logAction(db, 'quote', `Orçamento excluído: ${quote.clientName}`, { quoteId: quote.id });
   await writeDb(db);
   res.json({ ok: true });
+}));
+
+app.get('/api/quotes/:id/pdf', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const quote = db.quotes.find((item) => String(item.id) === String(req.params.id));
+  if (!quote) return res.status(404).json({ error: 'Orçamento não encontrado.' });
+
+  const disposition = req.query.download === '1' ? 'attachment' : 'inline';
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `${disposition}; filename="${quotePdfFileName(quote)}"`);
+
+  drawQuotePdf(quote, res);
 }));
 
 app.post('/api/quotes/:id/approve', asyncHandler(async (req, res) => {

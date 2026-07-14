@@ -1031,7 +1031,7 @@ function quoteCard(quote) {
       <div class="actions" style="margin-top:12px">
         <button class="soft" onclick="editQuote(${quote.id})">Editar</button>
         <button class="soft" onclick="printQuote(${quote.id})">Gerar PDF</button>
-        <button class="soft whatsapp-action" onclick="sendQuoteWhatsapp(${quote.id})">WhatsApp</button>
+        <button class="soft whatsapp-action" onclick="sendQuoteWhatsapp(${quote.id})">WhatsApp + PDF</button>
         ${quote.convertedOrderId ? `<span class="badge ok">Pedido #${quote.convertedOrderId}</span>` : `<button class="primary compact-action" onclick="approveQuote(${quote.id})">Aprovar e enviar</button>`}
         <button class="danger" onclick="deleteQuote(${quote.id})">Excluir</button>
       </div>
@@ -1046,11 +1046,15 @@ function whatsappPhoneUrl(phone) {
   return `https://wa.me/${withCountry}`;
 }
 
+function quotePdfUrl(id, download = false) {
+  return `/api/quotes/${id}/pdf${download ? '?download=1' : ''}`;
+}
+
 function quoteWhatsappMessage(quote) {
   const lines = [
     `Olá, ${quote.clientName}! Tudo bem?`,
     '',
-    'Segue o resumo do orçamento do Quintal do Zé:',
+    'Preparamos o orçamento do Quintal do Zé com carinho. Segue o resumo e o PDF da proposta para você conferir:',
     `Evento: ${quote.eventType || '-'}`,
     quote.eventDate ? `Data: ${quoteDate(quote.eventDate)}` : '',
     quote.eventTime ? `Horário: ${quote.eventTime}` : '',
@@ -1062,10 +1066,36 @@ function quoteWhatsappMessage(quote) {
     '',
     `Total: ${money(quote.total)}`,
     '',
-    'Se estiver tudo certo, podemos confirmar por aqui.',
+    'Qualquer ajuste que precisar, é só nos chamar por aqui. Se estiver tudo certo, podemos confirmar por esta conversa.',
   ];
 
   return lines.filter((line) => line !== '').join('\n');
+}
+
+async function shareQuotePdfFile(quote, message) {
+  if (!navigator.share || !navigator.canShare || typeof File === 'undefined') return false;
+
+  const response = await fetch(quotePdfUrl(quote.id));
+  if (!response.ok) return false;
+
+  const blob = await response.blob();
+  const file = new File([blob], `orcamento-quintal-do-ze-${quote.id}.pdf`, { type: 'application/pdf' });
+  const shareData = {
+    title: `Orçamento Quintal do Zé #${quote.id}`,
+    text: message,
+    files: [file],
+  };
+
+  if (!navigator.canShare(shareData)) return false;
+
+  await navigator.share(shareData);
+  return true;
+}
+
+function openQuotePdfTab(quote) {
+  const opened = window.open(quotePdfUrl(quote.id), '_blank');
+  if (!opened) toast('Permita pop-ups para abrir o PDF do orçamento.');
+  return Boolean(opened);
 }
 
 window.sendQuoteWhatsapp = async (id) => {
@@ -1076,12 +1106,27 @@ window.sendQuoteWhatsapp = async (id) => {
   const message = quoteWhatsappMessage(quote);
   const phoneUrl = whatsappPhoneUrl(quote.phone);
 
+  try {
+    const shared = await shareQuotePdfFile(quote, message);
+    if (shared) return toast('PDF preparado para compartilhar.');
+  } catch (err) {
+    if (err?.name === 'AbortError') return toast('Compartilhamento cancelado.');
+    console.warn('Nao foi possivel compartilhar o PDF diretamente.', err);
+  }
+
+  openQuotePdfTab(quote);
+  const copied = await copyText(message).catch(() => false);
+
   if (!phoneUrl) {
-    const copied = await copyText(message).catch(() => false);
-    return toast(copied ? 'Mensagem copiada. Cadastre um telefone para abrir o WhatsApp direto.' : 'Cadastre o telefone do cliente para abrir o WhatsApp.');
+    return toast(copied
+      ? 'PDF aberto e mensagem copiada. Cadastre um telefone para abrir o WhatsApp direto.'
+      : 'PDF aberto. Cadastre o telefone do cliente para abrir o WhatsApp direto.');
   }
 
   window.open(`${phoneUrl}?text=${encodeURIComponent(message)}`, '_blank');
+  toast(copied
+    ? 'PDF aberto e mensagem aberta no WhatsApp. Anexe o PDF na conversa.'
+    : 'PDF aberto e WhatsApp iniciado. Anexe o PDF na conversa.');
 };
 
 async function saveQuote(event) {
@@ -1145,77 +1190,7 @@ window.printQuote = async (id) => {
   const quotes = await API.get('/api/quotes');
   const quote = quotes.find((item) => Number(item.id) === Number(id));
   if (!quote) return toast('Orçamento não encontrado.');
-
-  const generatedAt = new Date().toLocaleDateString('pt-BR');
-  const quoteNumber = String(quote.id || '').padStart(4, '0');
-  const details = [
-    `Nº ${quoteNumber}`,
-    quote.eventType,
-    quote.eventDate ? quoteDate(quote.eventDate) : '',
-    quote.eventTime || '',
-    quote.guests ? `${quote.guests} pessoas` : '',
-  ].filter(Boolean).join(' • ');
-
-  const metricsHtml = `
-    <div class="grid g4">
-      <div class="metric"><span>Cliente</span><b>${escapeHtml(quote.clientName)}</b></div>
-      <div class="metric"><span>Contato</span><b>${escapeHtml(quote.phone || '-')}</b></div>
-      <div class="metric"><span>Evento</span><b>${escapeHtml(quote.eventType || '-')}</b></div>
-      <div class="metric"><span>Status</span><b>${escapeHtml(quoteStatusLabel(quote.status))}</b></div>
-    </div>
-
-    <div class="grid g4" style="margin-top:10px">
-      <div class="metric"><span>Data</span><b>${quoteDate(quote.eventDate)}</b></div>
-      <div class="metric"><span>Horário</span><b>${escapeHtml(quote.eventTime || '-')}</b></div>
-      <div class="metric"><span>Pessoas</span><b>${Number(quote.guests || 0) || '-'}</b></div>
-      <div class="metric"><span>Local</span><b>${escapeHtml(quote.location || '-')}</b></div>
-    </div>
-  `;
-
-  const bodyHtml = `
-    ${quote.notes ? `<p class="pdf-print-note">${escapeHtml(quote.notes)}</p>` : ''}
-
-    <h2 style="margin-top:24px">Itens do orçamento</h2>
-    <div class="table-wrap">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th>Qtd.</th>
-            <th>Valor unit.</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${(quote.items || []).map((item) => `
-            <tr>
-              <td>${escapeHtml(item.description)}</td>
-              <td>${Number(item.qty || 0)}</td>
-              <td>${money(item.unitPrice)}</td>
-              <td>${money(Number(item.qty || 0) * Number(item.unitPrice || 0))}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="pdf-print-total">
-      <span>Total do orçamento</span>
-      <b>${money(quote.total)}</b>
-    </div>
-  `;
-
-  openReportPrintDocument({
-    documentTitle: `Orçamento ${escapeHtml(quote.clientName)}`,
-    heading: 'Orçamento Quintal do Zé',
-    subtitle: `Proposta comercial • ${generatedAt}`,
-    details: escapeHtml(details),
-    metricsHtml,
-    bodyHtml,
-    referenceLabel: 'Orçamento',
-    referenceText: `#${quoteNumber}`,
-    blockedMessage: 'Permita pop-ups para imprimir o orçamento.',
-  });
+  openQuotePdfTab(quote);
 };
 
 async function renderCash(snapshot = null) {
