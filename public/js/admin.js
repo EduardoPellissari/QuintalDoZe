@@ -49,6 +49,7 @@ const quoteStatuses = [
   { value: 'recusado', label: 'Recusado' },
   { value: 'cancelado', label: 'Cancelado' },
 ];
+const quoteClosedStatuses = ['aprovado', 'recusado', 'cancelado'];
 
 const productUsageOptions = [
   { value: 'orders', label: 'Pedidos / Atendente' },
@@ -761,6 +762,71 @@ function quoteStatusBadge(status) {
   return 'warn';
 }
 
+function quoteStatusClass(status) {
+  return String(status || 'rascunho').replace(/[^a-z0-9-]/gi, '');
+}
+
+function quoteIsClosed(quote) {
+  return quoteClosedStatuses.includes(quote.status);
+}
+
+function quoteTodayValue() {
+  return typeof todayDateValue === 'function' ? todayDateValue() : new Date().toISOString().slice(0, 10);
+}
+
+function quoteReferenceDate(quote) {
+  return String(quote.updatedAt || quote.createdAt || '').slice(0, 10);
+}
+
+function quoteDaysUntilExpiration(quote) {
+  if (!quote.validUntil) return null;
+  const today = new Date(`${quoteTodayValue()}T00:00:00`);
+  const validUntil = new Date(`${quote.validUntil}T00:00:00`);
+  if (Number.isNaN(validUntil.getTime())) return null;
+  return Math.ceil((validUntil.getTime() - today.getTime()) / 86400000);
+}
+
+function quoteExpiringSoon(quote) {
+  const days = quoteDaysUntilExpiration(quote);
+  return !quoteIsClosed(quote) && days !== null && days >= 0 && days <= 7;
+}
+
+function quoteSummaryCards(quotes) {
+  const currentMonth = quoteTodayValue().slice(0, 7);
+  const openQuotes = quotes.filter((quote) => !quoteIsClosed(quote));
+  const waitingQuotes = quotes.filter((quote) => quote.status === 'aguardando');
+  const approvedThisMonth = quotes.filter((quote) => quote.status === 'aprovado' && quoteReferenceDate(quote).startsWith(currentMonth));
+  const expiringSoon = quotes.filter(quoteExpiringSoon);
+
+  return `
+    <section class="dashboard-cards quote-summary-cards">
+      <div class="dash-card quote-summary-card primary-summary">
+        <span>Em negociação</span>
+        <b>${money(openQuotes.reduce((sum, quote) => sum + Number(quote.total || 0), 0))}</b>
+        <small>${openQuotes.length} orçamento(s) aberto(s)</small>
+      </div>
+
+      <div class="dash-card quote-summary-card">
+        <span>Aguardando cliente</span>
+        <b>${waitingQuotes.length}</b>
+        <small>${money(waitingQuotes.reduce((sum, quote) => sum + Number(quote.total || 0), 0))}</small>
+      </div>
+
+      <div class="dash-card quote-summary-card">
+        <span>Aprovado no mês</span>
+        <b>${money(approvedThisMonth.reduce((sum, quote) => sum + Number(quote.total || 0), 0))}</b>
+        <small>${approvedThisMonth.length} proposta(s)</small>
+      </div>
+
+      <div class="dash-card quote-summary-card ${expiringSoon.length ? 'attention' : ''}">
+        <span>Validade perto</span>
+        <b>${expiringSoon.length}</b>
+        <small>Vencem em até 7 dias</small>
+      </div>
+    </section>
+  `;
+}
+
 function normalizedSearchText(value) {
   return String(value || '')
     .normalize('NFD')
@@ -790,13 +856,6 @@ function quoteFilterPanel(quotes) {
           <input id="quoteSearch" type="search" placeholder="Cliente, telefone, local..." value="${escapeHtml(quoteSearch)}" onchange="setQuoteSearch(this.value)">
         </label>
 
-        <label>Status
-          <select id="quoteFilterStatus" onchange="setQuoteFilterStatus(this.value)">
-            <option value="all">Todos</option>
-            ${quoteStatuses.map((status) => `<option value="${status.value}" ${quoteFilterStatus === status.value ? 'selected' : ''}>${status.label}</option>`).join('')}
-          </select>
-        </label>
-
         <label>Tipo de evento
           <select id="quoteFilterType" onchange="setQuoteFilterType(this.value)">
             <option value="all">Todos</option>
@@ -804,7 +863,45 @@ function quoteFilterPanel(quotes) {
           </select>
         </label>
 
+        <span class="quote-filter-current">Status: ${quoteFilterStatus === 'all' ? 'Todos' : quoteStatusLabel(quoteFilterStatus)}</span>
         <button class="soft" type="button" onclick="clearQuoteFilters()">Limpar filtros</button>
+      </div>
+    </section>
+  `;
+}
+
+function quoteFunnelPanel(quotes) {
+  const funnelStatuses = [
+    { value: 'all', label: 'Todos' },
+    ...quoteStatuses,
+  ];
+
+  return `
+    <section class="quote-funnel-panel">
+      <div class="quote-funnel-head">
+        <div>
+          <h3>Funil dos orçamentos</h3>
+          <p>Clique no status para filtrar a lista rapidamente.</p>
+        </div>
+      </div>
+
+      <div class="quote-funnel-grid">
+        ${funnelStatuses.map((status) => {
+          const statusQuotes = status.value === 'all'
+            ? quotes
+            : quotes.filter((quote) => quote.status === status.value);
+          const total = statusQuotes.reduce((sum, quote) => sum + Number(quote.total || 0), 0);
+          const active = quoteFilterStatus === status.value ? 'active' : '';
+          const statusClass = status.value === 'all' ? 'all' : quoteStatusClass(status.value);
+
+          return `
+            <button class="quote-funnel-card status-${statusClass} ${active}" type="button" onclick="setQuoteFilterStatus('${status.value}')">
+              <span>${escapeHtml(status.label)}</span>
+              <b>${statusQuotes.length}</b>
+              <small>${money(total)}</small>
+            </button>
+          `;
+        }).join('')}
       </div>
     </section>
   `;
@@ -874,6 +971,7 @@ function renderQuoteItemsOnly() {
   element.innerHTML = renderQuoteItemRows();
   bindQuoteItemEvents();
   updateQuoteTotal();
+  updateQuotePreview();
 }
 
 function bindQuoteItemEvents() {
@@ -909,6 +1007,7 @@ function bindQuoteItemEvents() {
         rowTotal.textContent = money(Number(quoteItems[index].qty || 0) * Number(quoteItems[index].unitPrice || 0));
       }
       updateQuoteTotal();
+      updateQuotePreview();
     });
   });
 }
@@ -924,6 +1023,91 @@ window.removeQuoteItem = (index) => {
   renderQuoteItemsOnly();
 };
 
+function quoteDraftValue(id, fallback = '') {
+  const element = document.getElementById(id);
+  return element ? element.value : fallback;
+}
+
+function currentQuoteDraft() {
+  return {
+    clientName: quoteDraftValue('qClientName', editingQuote?.clientName || ''),
+    phone: quoteDraftValue('qPhone', editingQuote?.phone || ''),
+    eventType: quoteDraftValue('qEventType', editingQuote?.eventType || quoteTypes[0]),
+    status: quoteDraftValue('qStatus', editingQuote?.status || 'rascunho'),
+    eventDate: quoteDraftValue('qEventDate', editingQuote?.eventDate || ''),
+    eventTime: quoteDraftValue('qEventTime', editingQuote?.eventTime || ''),
+    guests: quoteDraftValue('qGuests', editingQuote?.guests || ''),
+    location: quoteDraftValue('qLocation', editingQuote?.location || ''),
+    validUntil: quoteDraftValue('qValidUntil', editingQuote?.validUntil || ''),
+    notes: quoteDraftValue('qNotes', editingQuote?.notes || ''),
+    commercialNotes: quoteDraftValue('qCommercialNotes', editingQuote?.commercialNotes || ''),
+  };
+}
+
+function quotePreviewMarkup() {
+  const draft = currentQuoteDraft();
+  const validItems = quoteItems.filter((item) => String(item.description || '').trim());
+  const itemCount = validItems.length;
+  const total = quoteTotal();
+  const meta = [
+    draft.eventDate ? quoteDate(draft.eventDate) : '',
+    draft.eventTime || '',
+    draft.guests ? `${draft.guests} pessoas` : '',
+    draft.location || '',
+  ].filter(Boolean);
+
+  return `
+    <div class="quote-preview-hero">
+      <span>Prévia comercial</span>
+      <h3>${escapeHtml(draft.clientName || 'Nome do cliente')}</h3>
+      <p>${escapeHtml(draft.eventType || 'Tipo de evento')}</p>
+      <b>${money(total)}</b>
+    </div>
+
+    <div class="quote-preview-chips">
+      <span class="badge ${quoteStatusBadge(draft.status)}">${quoteStatusLabel(draft.status)}</span>
+      <span>${draft.validUntil ? `Válido até ${quoteDate(draft.validUntil)}` : 'Defina a validade'}</span>
+      <span>${itemCount} item(ns)</span>
+    </div>
+
+    <div class="quote-preview-meta">
+      ${meta.length ? meta.map((item) => `<span>${escapeHtml(item)}</span>`).join('') : '<span>Dados do evento aparecem aqui.</span>'}
+    </div>
+
+    <div class="quote-preview-items">
+      ${validItems.slice(0, 4).map((item) => `
+        <div>
+          <span>${Number(item.qty || 0)}x ${escapeHtml(item.description)}</span>
+          <b>${money(Number(item.qty || 0) * Number(item.unitPrice || 0))}</b>
+        </div>
+      `).join('') || '<p class="muted">Adicione itens para montar a prévia.</p>'}
+      ${validItems.length > 4 ? `<small>+ ${validItems.length - 4} item(ns) no orçamento</small>` : ''}
+    </div>
+
+    <div class="quote-preview-help">
+      <b>PDF no mesmo padrão</b>
+      <span>A proposta sai com logo, validade, condições comerciais e próximos passos.</span>
+    </div>
+  `;
+}
+
+function quotePreviewPanel() {
+  return `<section class="panel quote-preview-panel" id="quotePreviewPanel">${quotePreviewMarkup()}</section>`;
+}
+
+function updateQuotePreview() {
+  const panel = document.getElementById('quotePreviewPanel');
+  if (panel) panel.innerHTML = quotePreviewMarkup();
+}
+
+function bindQuotePreviewEvents() {
+  document.querySelectorAll('#quoteForm input, #quoteForm textarea, #quoteForm select').forEach((field) => {
+    if (field.classList.contains('quote-item-input')) return;
+    field.addEventListener('input', updateQuotePreview);
+    field.addEventListener('change', updateQuotePreview);
+  });
+}
+
 async function renderQuotes() {
   setText('pageTitle', 'Orçamentos');
   setText('pageSub', 'Monte propostas para café da tarde, happy hour, coffee break e eventos.');
@@ -937,104 +1121,101 @@ async function renderQuotes() {
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'));
 
   const sortedQuotes = [...filteredQuotes(quotes)].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  const activeQuotes = quotes.filter((quote) => !['aprovado', 'cancelado', 'recusado'].includes(quote.status)).length;
-  const approvedTotal = quotes
-    .filter((quote) => quote.status === 'aprovado')
-    .reduce((sum, quote) => sum + Number(quote.total || 0), 0);
 
   content.innerHTML = `
-    <section class="dashboard-cards">
-      <div class="dash-card"><b>${quotes.length}</b><span>Orçamentos salvos</span></div>
-      <div class="dash-card"><b>${activeQuotes}</b><span>Em andamento</span></div>
-      <div class="dash-card"><b>${money(approvedTotal)}</b><span>Total aprovado</span></div>
-    </section>
+    ${quoteSummaryCards(quotes)}
+    ${quoteFunnelPanel(quotes)}
 
     <div class="admin-layout admin-quotes">
-      <section class="panel admin-form-large">
-        <div class="admin-form-head">
-          <div>
-            <h3>${editingQuote ? 'Editar orçamento' : 'Novo orçamento'}</h3>
-            <p>Cadastre dados do evento, itens e valores para gerar uma proposta.</p>
-          </div>
-          <span class="badge ok">Eventos</span>
-        </div>
-
-        <form id="quoteForm">
-          <div class="admin-form-grid">
-            <label>Cliente
-              <input id="qClientName" required placeholder="Nome do cliente" value="${escapeHtml(editingQuote?.clientName || '')}">
-            </label>
-
-            <label>WhatsApp / telefone
-              <input id="qPhone" placeholder="(00) 00000-0000" value="${escapeHtml(editingQuote?.phone || '')}">
-            </label>
-
-            <label>Tipo de evento
-              <select id="qEventType">
-                ${quoteTypes.map((type) => `<option value="${escapeHtml(type)}" ${editingQuote?.eventType === type ? 'selected' : ''}>${type}</option>`).join('')}
-              </select>
-            </label>
-
-            <label>Status
-              <select id="qStatus">
-                ${quoteStatuses.map((status) => `<option value="${status.value}" ${editingQuote?.status === status.value ? 'selected' : ''}>${status.label}</option>`).join('')}
-              </select>
-            </label>
-
-            <label>Data
-              <input id="qEventDate" type="date" value="${escapeHtml(editingQuote?.eventDate || '')}">
-            </label>
-
-            <label>Horário
-              <input id="qEventTime" type="time" value="${escapeHtml(editingQuote?.eventTime || '')}">
-            </label>
-
-            <label>Pessoas
-              <input id="qGuests" type="number" min="0" step="1" placeholder="Ex: 30" value="${Number(editingQuote?.guests || 0) || ''}">
-            </label>
-
-            <label>Local
-              <input id="qLocation" placeholder="Onde será o evento" value="${escapeHtml(editingQuote?.location || '')}">
-            </label>
-
-            <label>Validade da proposta
-              <input id="qValidUntil" type="date" value="${escapeHtml(editingQuote?.validUntil || '')}">
-            </label>
-
-            <label class="full">Observações
-              <textarea id="qNotes" placeholder="Ex: incluir descartáveis, entrega, montagem, restrições alimentares...">${escapeHtml(editingQuote?.notes || '')}</textarea>
-            </label>
-
-            <label class="full">Observações comerciais do PDF
-              <textarea id="qCommercialNotes" placeholder="Ex: proposta válida conforme disponibilidade, confirmação mediante sinal, entrega combinada à parte...">${escapeHtml(editingQuote?.commercialNotes || '')}</textarea>
-            </label>
+      <div class="quote-workbench">
+        <section class="panel admin-form-large quote-form-panel">
+          <div class="admin-form-head">
+            <div>
+              <h3>${editingQuote ? 'Editar orçamento' : 'Novo orçamento'}</h3>
+              <p>Cadastre dados do evento, itens e valores para gerar uma proposta.</p>
+            </div>
+            <span class="badge ok">Eventos</span>
           </div>
 
-          <div class="quote-editor">
-            <div class="quote-editor-head">
-              <div>
-                <h3>Itens do orçamento</h3>
-                <p class="muted">Selecione produtos já cadastrados ou preencha itens personalizados.</p>
+          <form id="quoteForm">
+            <div class="admin-form-grid quote-form-grid">
+              <label>Cliente
+                <input id="qClientName" required placeholder="Nome do cliente" value="${escapeHtml(editingQuote?.clientName || '')}">
+              </label>
+
+              <label>WhatsApp / telefone
+                <input id="qPhone" placeholder="(00) 00000-0000" value="${escapeHtml(editingQuote?.phone || '')}">
+              </label>
+
+              <label>Tipo de evento
+                <select id="qEventType">
+                  ${quoteTypes.map((type) => `<option value="${escapeHtml(type)}" ${editingQuote?.eventType === type ? 'selected' : ''}>${type}</option>`).join('')}
+                </select>
+              </label>
+
+              <label>Status
+                <select id="qStatus">
+                  ${quoteStatuses.map((status) => `<option value="${status.value}" ${editingQuote?.status === status.value ? 'selected' : ''}>${status.label}</option>`).join('')}
+                </select>
+              </label>
+
+              <label>Data
+                <input id="qEventDate" type="date" value="${escapeHtml(editingQuote?.eventDate || '')}">
+              </label>
+
+              <label>Horário
+                <input id="qEventTime" type="time" value="${escapeHtml(editingQuote?.eventTime || '')}">
+              </label>
+
+              <label>Pessoas
+                <input id="qGuests" type="number" min="0" step="1" placeholder="Ex: 30" value="${Number(editingQuote?.guests || 0) || ''}">
+              </label>
+
+              <label>Local
+                <input id="qLocation" placeholder="Onde será o evento" value="${escapeHtml(editingQuote?.location || '')}">
+              </label>
+
+              <label>Validade da proposta
+                <input id="qValidUntil" type="date" value="${escapeHtml(editingQuote?.validUntil || '')}">
+              </label>
+
+              <label class="full">Observações
+                <textarea id="qNotes" placeholder="Ex: incluir descartáveis, entrega, montagem, restrições alimentares...">${escapeHtml(editingQuote?.notes || '')}</textarea>
+              </label>
+
+              <label class="full">Observações comerciais do PDF
+                <textarea id="qCommercialNotes" placeholder="Ex: proposta válida conforme disponibilidade, confirmação mediante sinal, entrega combinada à parte...">${escapeHtml(editingQuote?.commercialNotes || '')}</textarea>
+              </label>
+            </div>
+
+            <div class="quote-editor">
+              <div class="quote-editor-head">
+                <div>
+                  <h3>Itens do orçamento</h3>
+                  <p class="muted">Selecione produtos já cadastrados ou preencha itens personalizados.</p>
+                </div>
+                <button class="soft" type="button" onclick="addQuoteItem()">Adicionar item</button>
               </div>
-              <button class="soft" type="button" onclick="addQuoteItem()">Adicionar item</button>
+
+              <div id="quoteItems" class="quote-items"></div>
+
+              <div class="quote-total-box">
+                <span>Total do orçamento</span>
+                <b id="quoteTotal">${money(quoteTotal())}</b>
+              </div>
             </div>
 
-            <div id="quoteItems" class="quote-items"></div>
-
-            <div class="quote-total-box">
-              <span>Total do orçamento</span>
-              <b id="quoteTotal">${money(quoteTotal())}</b>
+            <div class="form-actions-row">
+              <button class="primary" type="submit">${editingQuote ? 'Salvar orçamento' : 'Criar orçamento'}</button>
+              ${editingQuote ? '<button class="soft" type="button" id="cancelQuote">Cancelar edição</button>' : ''}
             </div>
-          </div>
+          </form>
+        </section>
 
-          <div class="form-actions-row">
-            <button class="primary" type="submit">${editingQuote ? 'Salvar orçamento' : 'Criar orçamento'}</button>
-            ${editingQuote ? '<button class="soft" type="button" id="cancelQuote">Cancelar edição</button>' : ''}
-          </div>
-        </form>
-      </section>
+        ${quotePreviewPanel()}
+      </div>
 
-      <section class="panel admin-list-box">
+      <section class="panel admin-list-box quote-list-panel">
         <div class="admin-form-head">
           <div>
             <h3>Orçamentos salvos</h3>
@@ -1052,7 +1233,9 @@ async function renderQuotes() {
   `;
 
   bindQuoteItemEvents();
+  bindQuotePreviewEvents();
   updateQuoteTotal();
+  updateQuotePreview();
 
   const cancel = document.getElementById('cancelQuote');
   if (cancel) {
@@ -1067,46 +1250,55 @@ async function renderQuotes() {
 }
 
 function quoteCard(quote) {
+  const status = quote.status || 'rascunho';
   const details = [
-    quote.eventType,
     quote.eventDate ? quoteDate(quote.eventDate) : '',
     quote.eventTime || '',
     quote.guests ? `${quote.guests} pessoas` : '',
-    quote.validUntil ? `Válido até ${quoteDate(quote.validUntil)}` : '',
+    quote.location || '',
   ].filter(Boolean).join(' • ');
+  const items = quote.items || [];
+  const visibleItems = items.slice(0, 3);
 
   return `
-    <article class="quote-card">
+    <article class="quote-card status-${quoteStatusClass(status)}">
       <div class="quote-card-head">
         <div>
+          <span class="quote-kicker">${escapeHtml(quote.eventType || 'Evento')}</span>
           <h3>${escapeHtml(quote.clientName)}</h3>
           <p class="muted">${escapeHtml(details || 'Evento sem data definida')}</p>
-          ${quote.phone ? `<p class="muted">${escapeHtml(quote.phone)}</p>` : ''}
         </div>
-        <span class="badge ${quoteStatusBadge(quote.status)}">${quoteStatusLabel(quote.status)}</span>
+
+        <div class="quote-card-value">
+          <span>Total</span>
+          <b>${money(quote.total)}</b>
+        </div>
+      </div>
+
+      <div class="quote-card-meta">
+        <span class="badge ${quoteStatusBadge(status)}">${quoteStatusLabel(status)}</span>
+        <span>${quote.validUntil ? `Válido até ${quoteDate(quote.validUntil)}` : 'Sem validade definida'}</span>
+        <span>${items.length} item(ns)</span>
+        ${quote.phone ? `<span>${escapeHtml(quote.phone)}</span>` : ''}
       </div>
 
       <div class="quote-card-items">
-        ${(quote.items || []).map((item) => `
+        ${visibleItems.map((item) => `
           <div class="cart-line">
             <span>${Number(item.qty || 0)}x ${escapeHtml(item.description)}</span>
             <b>${money(Number(item.qty || 0) * Number(item.unitPrice || 0))}</b>
           </div>
         `).join('')}
+        ${items.length > visibleItems.length ? `<small class="quote-more-items">+ ${items.length - visibleItems.length} item(ns) no PDF</small>` : ''}
       </div>
 
-      <div class="metric" style="margin-top:12px">
-        <b>Total</b>
-        <b class="price">${money(quote.total)}</b>
-      </div>
-
-      <div class="actions" style="margin-top:12px">
+      <div class="actions quote-card-actions">
         <button class="soft" onclick="editQuote(${quote.id})">Editar</button>
         <button class="soft" onclick="duplicateQuote(${quote.id})">Duplicar</button>
-        <button class="soft" onclick="printQuote(${quote.id})">PDF</button>
+        <button class="soft quote-action-pdf" onclick="printQuote(${quote.id})">PDF</button>
         <button class="soft whatsapp-action" onclick="sendQuoteWhatsapp(${quote.id})">WhatsApp</button>
-        ${quote.convertedOrderId ? `<span class="badge ok">Pedido #${quote.convertedOrderId}</span>` : `<button class="primary compact-action" onclick="approveQuote(${quote.id})">Aprovar e enviar</button>`}
-        <button class="danger" onclick="deleteQuote(${quote.id})">Excluir</button>
+        ${quote.convertedOrderId ? `<span class="badge ok">Pedido #${quote.convertedOrderId}</span>` : `<button class="primary compact-action quote-action-approve" onclick="approveQuote(${quote.id})">Aprovar e enviar</button>`}
+        <button class="danger quote-action-danger" onclick="deleteQuote(${quote.id})">Excluir</button>
       </div>
     </article>
   `;

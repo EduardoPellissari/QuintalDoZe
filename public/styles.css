@@ -2361,6 +2361,384 @@ textarea {
   margin-top: 14px;
 }
 
+.quote-summary-cards {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.quote-summary-card {
+  position: relative;
+  min-height: 128px;
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top right, rgba(246,196,0,.18), transparent 44%),
+    rgba(255,255,255,.055);
+}
+
+.quote-summary-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.quote-summary-card b {
+  color: var(--gold);
+  font-size: clamp(26px, 2.4vw, 34px);
+  line-height: 1.02;
+}
+
+.quote-summary-card small {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.quote-summary-card.primary-summary {
+  border-color: rgba(246,196,0,.34);
+  background:
+    linear-gradient(135deg, rgba(246,196,0,.18), rgba(255,255,255,.045)),
+    rgba(255,255,255,.055);
+}
+
+.quote-summary-card.attention {
+  border-color: rgba(239,68,68,.32);
+  background:
+    radial-gradient(circle at top right, rgba(239,68,68,.18), transparent 42%),
+    rgba(255,255,255,.055);
+}
+
+.quote-funnel-panel {
+  display: grid;
+  gap: 14px;
+  margin: -2px 0 18px;
+  padding: 16px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.035));
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow: 0 16px 42px rgba(0,0,0,.16);
+}
+
+.quote-funnel-head h3 {
+  margin: 0 0 4px;
+}
+
+.quote-funnel-head p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.quote-funnel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 10px;
+}
+
+.quote-funnel-card {
+  position: relative;
+  min-height: 92px;
+  display: grid;
+  align-content: space-between;
+  gap: 6px;
+  text-align: left;
+  color: var(--txt);
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.quote-funnel-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.quote-funnel-card b {
+  color: var(--gold);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.quote-funnel-card small {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.quote-funnel-card.active {
+  border-color: rgba(246,196,0,.58);
+  background: linear-gradient(135deg, rgba(246,196,0,.20), rgba(255,255,255,.06));
+  box-shadow: 0 16px 34px rgba(246,196,0,.13);
+}
+
+.quote-funnel-card.status-aprovado.active {
+  border-color: rgba(50,199,106,.46);
+  background: linear-gradient(135deg, rgba(50,199,106,.18), rgba(255,255,255,.05));
+}
+
+.quote-funnel-card.status-recusado.active,
+.quote-funnel-card.status-cancelado.active {
+  border-color: rgba(239,68,68,.42);
+  background: linear-gradient(135deg, rgba(239,68,68,.16), rgba(255,255,255,.05));
+}
+
+.quote-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, .72fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.quote-form-panel {
+  min-width: 0;
+}
+
+.quote-form-grid {
+  grid-template-columns: repeat(2, minmax(190px, 1fr));
+}
+
+.quote-preview-panel {
+  position: sticky;
+  top: 18px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  overflow: hidden;
+  border-color: rgba(246,196,0,.18);
+}
+
+.quote-preview-hero {
+  padding: 18px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 90% 10%, rgba(246,196,0,.24), transparent 42%),
+    linear-gradient(135deg, #12100b, #050505);
+  border: 1px solid rgba(246,196,0,.26);
+}
+
+.quote-preview-hero span,
+.quote-kicker {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 8px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #151515;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.quote-preview-hero h3 {
+  margin: 0 0 4px;
+  font-size: 25px;
+  line-height: 1.05;
+}
+
+.quote-preview-hero p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.quote-preview-hero b {
+  display: block;
+  margin-top: 16px;
+  color: var(--gold);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.quote-preview-chips,
+.quote-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quote-preview-chips > span:not(.badge),
+.quote-preview-meta span {
+  padding: 8px 10px;
+  border-radius: 999px;
+  color: var(--txt);
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.09);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.quote-preview-items {
+  display: grid;
+  gap: 8px;
+}
+
+.quote-preview-items div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.quote-preview-items span {
+  min-width: 0;
+  color: var(--txt);
+  font-weight: 850;
+}
+
+.quote-preview-items b {
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.quote-preview-items small {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.quote-preview-help {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(246,196,0,.10);
+  border: 1px solid rgba(246,196,0,.18);
+}
+
+.quote-preview-help b {
+  color: var(--gold);
+}
+
+.quote-preview-help span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.quote-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(246,196,0,.13);
+  background:
+    radial-gradient(circle at top right, rgba(246,196,0,.10), transparent 38%),
+    rgba(255,255,255,.04);
+}
+
+.quote-card:before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--gold);
+}
+
+.quote-card.status-aprovado:before {
+  background: var(--ok);
+}
+
+.quote-card.status-aguardando:before {
+  background: var(--blue);
+}
+
+.quote-card.status-recusado:before,
+.quote-card.status-cancelado:before {
+  background: var(--danger);
+}
+
+.quote-card-value {
+  min-width: 132px;
+  text-align: right;
+}
+
+.quote-card-value span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.quote-card-value b {
+  color: var(--gold);
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.quote-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.quote-card-meta > span:not(.badge) {
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: var(--txt);
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.08);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.quote-more-items {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.quote-card-actions {
+  margin-top: 14px;
+  align-items: center;
+}
+
+.quote-action-pdf {
+  color: #151515;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  border-color: transparent;
+}
+
+.quote-action-approve {
+  color: #06140b;
+  background: linear-gradient(135deg, #70e09b, #b7f7cc);
+}
+
+.quote-action-danger {
+  margin-left: auto;
+}
+
+.quote-filter-current {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 14px;
+  color: var(--gold);
+  background: rgba(246,196,0,.10);
+  border: 1px solid rgba(246,196,0,.18);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+@media (max-width: 1180px) {
+  .quote-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .quote-preview-panel {
+    position: relative;
+    top: auto;
+  }
+}
+
 
 
 @media (max-width: 800px)  {
@@ -2397,6 +2775,11 @@ textarea {
   .quote-total-box {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .quote-card-value {
+    min-width: 0;
+    text-align: left;
   }
 
   .quote-item-row {

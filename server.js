@@ -562,11 +562,13 @@ function quotePdfFileName(quote) {
 }
 
 function drawInfoBox(doc, x, y, width, height, label, value) {
+  const isValidity = String(label || '').toLowerCase().includes('validade');
+
   doc
     .roundedRect(x, y, width, height, 11)
-    .fillAndStroke('#fff6da', '#e7cd7a');
+    .fillAndStroke(isValidity ? '#ffefb4' : '#fff6da', isValidity ? '#f6c400' : '#e7cd7a');
   doc
-    .fillColor('#6d5f3e')
+    .fillColor(isValidity ? '#171511' : '#6d5f3e')
     .font('Helvetica-Bold')
     .fontSize(7.5)
     .text(String(label || '').toUpperCase(), x + 10, y + 9, { width: width - 20 });
@@ -683,7 +685,9 @@ function drawQuotePdf(quote, stream) {
   }
 
   const commercialNotes = String(quote.commercialNotes || '').trim() || defaultCommercialNotes();
-  if (commercialNotes) {
+  const nextSteps = 'Próximo passo: responda esta mensagem para confirmar ou solicitar ajustes.';
+  const commercialText = `${commercialNotes} ${nextSteps}`;
+  if (commercialText) {
     doc
       .roundedRect(left, y, contentWidth, 58, 12)
       .fillAndStroke('#fff0bd', '#e7cd7a');
@@ -691,12 +695,12 @@ function drawQuotePdf(quote, stream) {
       .fillColor('#6d5f3e')
       .font('Helvetica-Bold')
       .fontSize(8)
-      .text('CONDIÇÕES COMERCIAIS', left + 12, y + 10);
+      .text('CONDIÇÕES E PRÓXIMOS PASSOS', left + 12, y + 10);
     doc
       .fillColor('#171511')
       .font('Helvetica')
       .fontSize(9.5)
-      .text(commercialNotes, left + 12, y + 24, { width: contentWidth - 24, height: 26, ellipsis: true });
+      .text(commercialText, left + 12, y + 24, { width: contentWidth - 24, height: 26, ellipsis: true });
     y += 76;
   }
 
@@ -762,15 +766,17 @@ function drawQuotePdf(quote, stream) {
   doc
     .roundedRect(left, y, contentWidth, 54, 14)
     .fillAndStroke('#11100d', '#f6c400');
+  const totalAmountWidth = 190;
+  const totalAmountX = left + contentWidth - totalAmountWidth - 18;
   doc
     .fillColor('#e7dcc2')
     .font('Helvetica-Bold')
     .fontSize(12)
-    .text('Total do orçamento', left + 220, y + 20, { width: 170, align: 'right' });
+    .text('Total do orçamento', left + 155, y + 20, { width: totalAmountX - left - 175, align: 'right', lineBreak: false });
   doc
     .fillColor('#f6c400')
     .fontSize(22)
-    .text(moneyBR(quote.total), left + 400, y + 16, { width: 108, align: 'right' });
+    .text(moneyBR(quote.total), totalAmountX, y + 16, { width: totalAmountWidth, align: 'right', lineBreak: false });
 
   y += 78;
   doc
