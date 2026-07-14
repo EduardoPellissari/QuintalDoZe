@@ -6,8 +6,10 @@
 requireRole(['admin']);
 
 setupNav([
+  { type: 'group', label: 'Geral' },
+  { type: 'button', tab: 'dashboard', label: '📊 Resumo', active: true },
   { type: 'group', label: 'Configuração' },
-  { type: 'button', tab: 'users', labelKey: 'menu.usuarios', active: true },
+  { type: 'button', tab: 'users', labelKey: 'menu.usuarios' },
   { type: 'button', tab: 'products', labelKey: 'menu.produtos' },
   { type: 'button', tab: 'quotes', label: '📋 Orçamentos' },
   { type: 'group', label: 'Operação' },
@@ -34,7 +36,7 @@ let quoteFilterType = 'all';
 let adminReportStartDate = todayDateValue();
 let adminReportEndDate = todayDateValue();
 let selectedAdminCashTable = '';
-let activeAdminTab = 'users';
+let activeAdminTab = 'dashboard';
 let adminCashLastSignature = '';
 let adminCashAutoRefreshing = false;
 let adminCashKnownOrderIds = new Set();
@@ -50,6 +52,64 @@ const quoteStatuses = [
   { value: 'cancelado', label: 'Cancelado' },
 ];
 const quoteClosedStatuses = ['aprovado', 'recusado', 'cancelado'];
+const quoteTemplates = [
+  {
+    id: 'cafe-tarde',
+    title: 'Café da tarde',
+    eventType: 'Café da tarde',
+    description: 'Base para reuniões, aniversários e encontros no período da tarde.',
+    notes: 'Sugestão com salgados, bolo e bebidas. Ajustar quantidades conforme número de pessoas.',
+    commercialNotes: 'Proposta válida conforme disponibilidade. Confirmação mediante sinal e alinhamento do horário de entrega/montagem.',
+    items: [
+      { description: 'Mini sanduíches variados', qty: 30, unitPrice: 0, keywords: ['sanduiche', 'lanche', 'mini'] },
+      { description: 'Salgados assados sortidos', qty: 50, unitPrice: 0, keywords: ['salgado', 'assado'] },
+      { description: 'Bolo caseiro fatiado', qty: 1, unitPrice: 0, keywords: ['bolo'] },
+      { description: 'Café, suco e água saborizada', qty: 30, unitPrice: 0, keywords: ['cafe', 'suco', 'bebida'] },
+    ],
+  },
+  {
+    id: 'happy-hour',
+    title: 'Happy hour',
+    eventType: 'Happy hour',
+    description: 'Sugestão para confraternizações, empresas e grupos no fim do dia.',
+    notes: 'Sugestão com porções e opções para compartilhar. Bebidas podem ser combinadas à parte.',
+    commercialNotes: 'Valores sujeitos à disponibilidade. Serviço, bebidas e reposições extras podem ser ajustados conforme o evento.',
+    items: [
+      { description: 'Porções para compartilhar', qty: 6, unitPrice: 0, keywords: ['porcao', 'batata', 'petisco'] },
+      { description: 'Tábuas ou frios selecionados', qty: 2, unitPrice: 0, keywords: ['tabua', 'frios'] },
+      { description: 'Mini lanches ou bruschettas', qty: 40, unitPrice: 0, keywords: ['lanche', 'bruschetta', 'mini'] },
+      { description: 'Bebidas combinadas à parte', qty: 1, unitPrice: 0, keywords: ['bebida', 'refrigerante', 'suco'] },
+    ],
+  },
+  {
+    id: 'coffee-break',
+    title: 'Coffee break',
+    eventType: 'Coffee break',
+    description: 'Modelo para treinamentos, palestras, reuniões e eventos corporativos.',
+    notes: 'Sugestão com itens práticos para servir em intervalo. Ajustar conforme duração do evento.',
+    commercialNotes: 'Proposta válida para a data solicitada e sujeita à confirmação de disponibilidade. Montagem e entrega alinhadas previamente.',
+    items: [
+      { description: 'Mini salgados e snacks', qty: 50, unitPrice: 0, keywords: ['salgado', 'snack'] },
+      { description: 'Doces ou bolo em pedaços', qty: 40, unitPrice: 0, keywords: ['doce', 'bolo'] },
+      { description: 'Café e bebidas frias', qty: 40, unitPrice: 0, keywords: ['cafe', 'bebida', 'suco'] },
+      { description: 'Descartáveis e apoio de mesa', qty: 1, unitPrice: 0, keywords: ['descartavel', 'mesa'] },
+    ],
+  },
+  {
+    id: 'almoco-corporativo',
+    title: 'Almoço corporativo',
+    eventType: 'Almoço/Jantar',
+    description: 'Base para almoço, jantar, reunião de equipe ou evento empresarial.',
+    notes: 'Sugestão com prato principal, acompanhamentos e bebidas. Ajustar restrições alimentares nas observações.',
+    commercialNotes: 'Proposta válida conforme disponibilidade. Cardápio final, logística e forma de pagamento devem ser confirmados antes do evento.',
+    items: [
+      { description: 'Prato principal por pessoa', qty: 30, unitPrice: 0, keywords: ['prato', 'executivo', 'principal'] },
+      { description: 'Acompanhamentos e saladas', qty: 30, unitPrice: 0, keywords: ['salada', 'acompanhamento'] },
+      { description: 'Sobremesa individual', qty: 30, unitPrice: 0, keywords: ['sobremesa', 'doce'] },
+      { description: 'Bebidas não alcoólicas', qty: 30, unitPrice: 0, keywords: ['bebida', 'refrigerante', 'suco'] },
+    ],
+  },
+];
 
 const productUsageOptions = [
   { value: 'orders', label: 'Pedidos / Atendente' },
@@ -87,6 +147,7 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
   editingQuote = null;
   quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
 
+  if (button.dataset.tab === 'dashboard') renderDashboard();
   if (button.dataset.tab === 'users') renderUsers();
   if (button.dataset.tab === 'products') renderProducts();
   if (button.dataset.tab === 'quotes') renderQuotes();
@@ -95,6 +156,21 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
   if (button.dataset.tab === 'orders') renderEmbeddedAdminPage('orders');
   if (button.dataset.tab === 'kitchen') renderEmbeddedAdminPage('kitchen');
 });
+
+function openAdminTab(tab) {
+  const button = document.querySelector(`nav button[data-tab="${tab}"]`);
+  if (button) button.click();
+}
+
+window.openAdminTab = openAdminTab;
+
+window.openQuoteForEdit = async (id) => {
+  stashEmbeddedAdminFrames();
+  document.querySelectorAll('nav button').forEach((item) => item.classList.remove('active'));
+  document.querySelector('nav button[data-tab="quotes"]')?.classList.add('active');
+  activeAdminTab = 'quotes';
+  await window.editQuote(id);
+};
 
 function embeddedFrameCache() {
   let cache = document.getElementById('adminEmbeddedCache');
@@ -190,6 +266,180 @@ function updateAdminNavCounters(snapshot = null) {
   return API.get('/api/orders')
     .then(applyCounters)
     .catch((err) => console.warn('Nao foi possivel atualizar contadores do admin.', err));
+}
+
+function dashboardActivityList(activityLog = []) {
+  const rows = activityLog.slice(0, 6);
+
+  return `
+    <div class="dashboard-list">
+      ${rows.length ? rows.map((entry) => `
+        <div class="dashboard-list-row">
+          <span>
+            <b>${escapeHtml(entry.message || 'Atividade registrada')}</b>
+            <small>${dateTime(entry.createdAt)}</small>
+          </span>
+          <em>${escapeHtml(entry.type || 'sistema')}</em>
+        </div>
+      `).join('') : '<p class="muted">Nenhuma atividade recente registrada.</p>'}
+    </div>
+  `;
+}
+
+function dashboardOpenOrderRows(openOrders = []) {
+  const rows = [...openOrders]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 6);
+
+  return `
+    <div class="dashboard-list">
+      ${rows.length ? rows.map((order) => `
+        <div class="dashboard-list-row">
+          <span>
+            <b>${isEventOrder(order) ? 'Evento' : 'Mesa'} ${escapeHtml(order.table || '-')}</b>
+            <small>${escapeHtml(order.waiter || 'Sem responsável')} • ${statusLabel(order.status)}</small>
+          </span>
+          <em>${money(orderSubtotal(order))}</em>
+        </div>
+      `).join('') : '<p class="muted">Nenhum pedido aberto agora.</p>'}
+    </div>
+  `;
+}
+
+function dashboardProductAlerts(products = []) {
+  const soldOut = products.filter((product) => product.soldOut === true);
+  const inactive = products.filter((product) => product.active === false);
+  const rows = [...soldOut, ...inactive].slice(0, 6);
+
+  return `
+    <div class="dashboard-list">
+      ${rows.length ? rows.map((product) => `
+        <div class="dashboard-list-row">
+          <span>
+            <b>${escapeHtml(product.name || 'Produto')}</b>
+            <small>${escapeHtml(product.category || 'Geral')} • ${productUsageLabel(product)}</small>
+          </span>
+          <em>${product.soldOut ? 'Esgotado' : 'Inativo'}</em>
+        </div>
+      `).join('') : '<p class="muted">Nenhum produto esgotado ou inativo.</p>'}
+    </div>
+  `;
+}
+
+async function renderDashboard() {
+  setText('pageTitle', 'Resumo');
+  setText('pageSub', 'Visão rápida do dia, operação e orçamentos que precisam de atenção.');
+
+  const [orders, products, quotes, cashInfo, activityLog] = await Promise.all([
+    API.get('/api/orders'),
+    API.get('/api/products'),
+    API.get('/api/quotes'),
+    API.get('/api/cash-sessions/current'),
+    API.get('/api/activity-log'),
+  ]);
+
+  const today = todayDateValue();
+  const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
+  const restaurantOrders = openOrders.filter((order) => !isEventOrder(order));
+  const eventOrders = openOrders.filter(isEventOrder);
+  const kitchenQueue = restaurantOrders.filter((order) => ['pendente', 'preparando'].includes(order.status));
+  const readyOrders = restaurantOrders.filter((order) => order.status === 'pronto');
+  const paidToday = orders.filter((order) => order.paid && localDateValue(order.paidAt || order.createdAt) === today);
+  const salesToday = paidToday.reduce((sum, order) => sum + orderFinalTotal(order), 0);
+  const occupiedTables = groupOrdersByTable(restaurantOrders).length;
+  const soldOutProducts = products.filter((product) => product.soldOut === true).length;
+  const quoteWaiting = quotes.filter((quote) => quote.status === 'aguardando').length;
+  const quoteFollowUps = quoteFollowUpItems(quotes, 99).length;
+  const openQuoteTotal = quotes
+    .filter((quote) => !quoteIsClosed(quote))
+    .reduce((sum, quote) => sum + Number(quote.total || 0), 0);
+
+  content.innerHTML = `
+    <section class="admin-dashboard">
+      <div class="dashboard-hero">
+        <div>
+          <span>Painel do dia</span>
+          <h3>${money(salesToday)}</h3>
+          <p>${paidToday.length} pedido(s) pago(s) hoje • ${openOrders.length} pedido(s) em aberto</p>
+        </div>
+        <div class="dashboard-hero-status">
+          <b class="${cashInfo.current ? 'ok' : 'warn'}">${cashInfo.current ? 'Caixa aberto' : 'Caixa fechado'}</b>
+          <small>${cashInfo.current ? `Aberto em ${dateTime(cashInfo.current.openedAt)}` : 'Abra o caixa para registrar movimentações.'}</small>
+        </div>
+      </div>
+
+      <section class="dashboard-cards operation-cards">
+        <div class="dash-card"><b>${openOrders.length}</b><span>Pedidos em aberto</span></div>
+        <div class="dash-card"><b>${occupiedTables}</b><span>Mesas ocupadas</span></div>
+        <div class="dash-card"><b>${kitchenQueue.length}</b><span>Na cozinha</span></div>
+        <div class="dash-card"><b>${readyOrders.length}</b><span>Prontos</span></div>
+        <div class="dash-card"><b>${quoteWaiting}</b><span>Orçamentos aguardando</span></div>
+        <div class="dash-card"><b>${soldOutProducts}</b><span>Itens esgotados</span></div>
+      </section>
+
+      <section class="dashboard-quick-actions">
+        <button class="primary compact-action" type="button" onclick="openAdminTab('quotes')">Novo orçamento</button>
+        <button class="soft" type="button" onclick="openAdminTab('cash')">Ir para o caixa</button>
+        <button class="soft" type="button" onclick="openAdminTab('orders')">Abrir pedidos</button>
+        <button class="soft" type="button" onclick="openAdminTab('kitchen')">Ver cozinha</button>
+        <button class="soft" type="button" onclick="openAdminTab('products')">Produtos</button>
+      </section>
+
+      <div class="dashboard-grid">
+        <section class="panel dashboard-panel">
+          <div class="admin-form-head compact-head">
+            <div>
+              <h3>Operação agora</h3>
+              <p>Pedidos abertos e eventos pendentes no caixa.</p>
+            </div>
+            <span class="badge ${openOrders.length ? 'warn' : 'ok'}">${money(openOrders.reduce((sum, order) => sum + orderSubtotal(order), 0))}</span>
+          </div>
+          ${dashboardOpenOrderRows(openOrders)}
+        </section>
+
+        ${quoteFollowUpPanel(quotes, { compact: true })}
+
+        <section class="panel dashboard-panel">
+          <div class="admin-form-head compact-head">
+            <div>
+              <h3>Orçamentos em negociação</h3>
+              <p>Total aberto e propostas que podem virar venda.</p>
+            </div>
+            <span class="badge blue">${money(openQuoteTotal)}</span>
+          </div>
+          <div class="dashboard-mini-metrics">
+            <span><b>${quotes.filter((quote) => !quoteIsClosed(quote)).length}</b> aberto(s)</span>
+            <span><b>${quoteFollowUps}</b> follow-up</span>
+            <span><b>${quotes.filter(quoteExpiringSoon).length}</b> vencem em 7 dias</span>
+          </div>
+        </section>
+
+        <section class="panel dashboard-panel">
+          <div class="admin-form-head compact-head">
+            <div>
+              <h3>Produtos para revisar</h3>
+              <p>Itens esgotados ou inativos no cardápio.</p>
+            </div>
+            <span class="badge ${soldOutProducts ? 'warn' : 'ok'}">${soldOutProducts} esgotado(s)</span>
+          </div>
+          ${dashboardProductAlerts(products)}
+        </section>
+
+        <section class="panel dashboard-panel wide">
+          <div class="admin-form-head compact-head">
+            <div>
+              <h3>Atividades recentes</h3>
+              <p>Últimas movimentações do sistema.</p>
+            </div>
+            <button class="soft" type="button" onclick="openAdminTab('reports')">Ver relatório</button>
+          </div>
+          ${dashboardActivityList(activityLog)}
+        </section>
+      </div>
+    </section>
+  `;
+
+  updateAdminNavCounters({ openOrders, restaurantOrders, eventOrders });
 }
 
 async function renderUsers() {
@@ -791,6 +1041,134 @@ function quoteExpiringSoon(quote) {
   return !quoteIsClosed(quote) && days !== null && days >= 0 && days <= 7;
 }
 
+function dateValueAfterDays(days) {
+  const date = new Date(`${quoteTodayValue()}T00:00:00`);
+  date.setDate(date.getDate() + Number(days || 0));
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
+}
+
+function daysSinceQuoteUpdate(quote) {
+  const reference = quoteReferenceDate(quote);
+  if (!reference) return 0;
+  const today = new Date(`${quoteTodayValue()}T00:00:00`);
+  const updated = new Date(`${reference}T00:00:00`);
+  if (Number.isNaN(updated.getTime())) return 0;
+  return Math.max(Math.floor((today.getTime() - updated.getTime()) / 86400000), 0);
+}
+
+function quoteFollowUpInfo(quote) {
+  if (quoteIsClosed(quote)) return null;
+
+  const expirationDays = quoteDaysUntilExpiration(quote);
+  const ageDays = daysSinceQuoteUpdate(quote);
+
+  if (expirationDays !== null && expirationDays < 0) {
+    return {
+      priority: 1,
+      tone: 'danger',
+      title: `Vencido há ${Math.abs(expirationDays)} dia(s)`,
+      detail: 'Atualize a validade ou feche este orçamento.',
+    };
+  }
+
+  if (expirationDays === 0) {
+    return {
+      priority: 2,
+      tone: 'danger',
+      title: 'Vence hoje',
+      detail: 'Vale fazer contato com o cliente ainda hoje.',
+    };
+  }
+
+  if (expirationDays === 1) {
+    return {
+      priority: 3,
+      tone: 'warn',
+      title: 'Vence amanhã',
+      detail: 'Bom momento para lembrar o cliente da proposta.',
+    };
+  }
+
+  if (expirationDays !== null && expirationDays <= 3) {
+    return {
+      priority: 4,
+      tone: 'warn',
+      title: `Vence em ${expirationDays} dias`,
+      detail: 'Acompanhe para não deixar a proposta esfriar.',
+    };
+  }
+
+  if (!quote.validUntil) {
+    return {
+      priority: 5,
+      tone: 'warn',
+      title: 'Sem validade definida',
+      detail: 'Defina uma validade para controlar melhor o retorno.',
+    };
+  }
+
+  if (['enviado', 'aguardando'].includes(quote.status) && ageDays >= 2) {
+    return {
+      priority: 6,
+      tone: 'blue',
+      title: `Sem retorno há ${ageDays} dia(s)`,
+      detail: 'Vale mandar uma mensagem de acompanhamento.',
+    };
+  }
+
+  if (quote.status === 'rascunho') {
+    return {
+      priority: 7,
+      tone: 'warn',
+      title: 'Rascunho para finalizar',
+      detail: 'Revise valores e envie quando estiver pronto.',
+    };
+  }
+
+  return null;
+}
+
+function quoteFollowUpItems(quotes, limit = 6) {
+  return quotes
+    .map((quote) => ({ quote, followUp: quoteFollowUpInfo(quote) }))
+    .filter((item) => item.followUp)
+    .sort((a, b) => {
+      if (a.followUp.priority !== b.followUp.priority) return a.followUp.priority - b.followUp.priority;
+      return new Date(b.quote.updatedAt || b.quote.createdAt || 0) - new Date(a.quote.updatedAt || a.quote.createdAt || 0);
+    })
+    .slice(0, limit);
+}
+
+function quoteFollowUpPanel(quotes, { compact = false } = {}) {
+  const items = quoteFollowUpItems(quotes, compact ? 4 : 6);
+
+  return `
+    <section class="panel quote-follow-panel ${compact ? 'compact' : ''}">
+      <div class="admin-form-head compact-head">
+        <div>
+          <h3>Follow-up de orçamentos</h3>
+          <p>Propostas que merecem atenção agora.</p>
+        </div>
+        <span class="badge ${items.length ? 'warn' : 'ok'}">${items.length} pendência(s)</span>
+      </div>
+
+      <div class="quote-follow-list">
+        ${items.length ? items.map(({ quote, followUp }) => `
+          <button class="quote-follow-item ${followUp.tone}" type="button" onclick="openQuoteForEdit(${quote.id})">
+            <span>
+              <b>${escapeHtml(quote.clientName || 'Cliente')}</b>
+              <small>${escapeHtml(quote.eventType || 'Evento')} • ${quote.total ? money(quote.total) : money(0)}</small>
+            </span>
+            <em>${escapeHtml(followUp.title)}</em>
+            <small>${escapeHtml(followUp.detail)}</small>
+          </button>
+        `).join('') : '<p class="muted">Nenhum orçamento pendente de acompanhamento agora.</p>'}
+      </div>
+    </section>
+  `;
+}
+
 function quoteSummaryCards(quotes) {
   const currentMonth = quoteTodayValue().slice(0, 7);
   const openQuotes = quotes.filter((quote) => !quoteIsClosed(quote));
@@ -926,6 +1304,57 @@ function quoteItemDescriptionFromProduct(product) {
   return product.description ? `${product.name} - ${product.description}` : product.name;
 }
 
+function quoteTemplateProduct(keywords = []) {
+  const normalizedKeywords = keywords.map(normalizedSearchText).filter(Boolean);
+  if (!normalizedKeywords.length) return null;
+
+  return quoteProducts.find((product) => {
+    const haystack = normalizedSearchText(`${product.name || ''} ${product.category || ''} ${product.description || ''}`);
+    return normalizedKeywords.some((keyword) => haystack.includes(keyword));
+  }) || null;
+}
+
+function quoteTemplateItem(item) {
+  const product = quoteTemplateProduct(item.keywords);
+  if (!product) {
+    return {
+      productId: null,
+      description: item.description,
+      qty: item.qty || 1,
+      unitPrice: Number(item.unitPrice || 0),
+    };
+  }
+
+  return {
+    productId: product.id,
+    description: quoteItemDescriptionFromProduct(product),
+    qty: item.qty || 1,
+    unitPrice: Number(product.price || item.unitPrice || 0),
+  };
+}
+
+function quoteTemplatePanel() {
+  return `
+    <section class="quote-template-panel">
+      <div class="quote-template-head">
+        <div>
+          <h4>Começar por modelo</h4>
+          <p>Escolha um pacote base e ajuste itens, valores e observações depois.</p>
+        </div>
+      </div>
+
+      <div class="quote-template-grid">
+        ${quoteTemplates.map((template) => `
+          <button class="quote-template-card" type="button" onclick="applyQuoteTemplate('${template.id}')">
+            <b>${escapeHtml(template.title)}</b>
+            <span>${escapeHtml(template.description)}</span>
+          </button>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
 function renderQuoteItemRows() {
   return quoteItems.map((item, index) => `
     <div class="quote-item-row">
@@ -1021,6 +1450,33 @@ window.removeQuoteItem = (index) => {
   quoteItems.splice(index, 1);
   if (!quoteItems.length) quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
   renderQuoteItemsOnly();
+};
+
+window.applyQuoteTemplate = (id) => {
+  const template = quoteTemplates.find((item) => item.id === id);
+  if (!template) return;
+
+  const hasDraftContent = quoteItems.some((item) => String(item.description || '').trim() || Number(item.unitPrice || 0) > 0) ||
+    Boolean(document.getElementById('qNotes')?.value || document.getElementById('qCommercialNotes')?.value);
+
+  if (hasDraftContent && !confirm('Aplicar este modelo vai trocar os itens e textos comerciais atuais. Continuar?')) return;
+
+  const eventType = document.getElementById('qEventType');
+  const status = document.getElementById('qStatus');
+  const validUntil = document.getElementById('qValidUntil');
+  const notes = document.getElementById('qNotes');
+  const commercialNotes = document.getElementById('qCommercialNotes');
+
+  if (eventType) eventType.value = template.eventType;
+  if (status) status.value = 'rascunho';
+  if (validUntil && !validUntil.value) validUntil.value = dateValueAfterDays(7);
+  if (notes) notes.value = template.notes;
+  if (commercialNotes) commercialNotes.value = template.commercialNotes;
+
+  quoteItems = template.items.map(quoteTemplateItem);
+  renderQuoteItemsOnly();
+  updateQuotePreview();
+  toast(`Modelo "${template.title}" aplicado.`);
 };
 
 function quoteDraftValue(id, fallback = '') {
@@ -1125,6 +1581,7 @@ async function renderQuotes() {
   content.innerHTML = `
     ${quoteSummaryCards(quotes)}
     ${quoteFunnelPanel(quotes)}
+    ${quoteFollowUpPanel(quotes)}
 
     <div class="admin-layout admin-quotes">
       <div class="quote-workbench">
@@ -1138,6 +1595,8 @@ async function renderQuotes() {
           </div>
 
           <form id="quoteForm">
+            ${quoteTemplatePanel()}
+
             <div class="admin-form-grid quote-form-grid">
               <label>Cliente
                 <input id="qClientName" required placeholder="Nome do cliente" value="${escapeHtml(editingQuote?.clientName || '')}">
@@ -1803,7 +2262,7 @@ window.adminCancelOrder = async (id) => {
   renderCash();
 };
 
-renderUsers();
+renderDashboard();
 preloadEmbeddedAdminPages();
 updateAdminNavCounters();
 setInterval(refreshAdminCashIfChanged, 4000);
