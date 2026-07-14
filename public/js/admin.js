@@ -263,7 +263,7 @@ function updateAdminNavCounters(snapshot = null) {
     return Promise.resolve();
   }
 
-  return API.get('/api/orders')
+  return API.get('/api/orders?view=open')
     .then(applyCounters)
     .catch((err) => console.warn('Nao foi possivel atualizar contadores do admin.', err));
 }
@@ -1944,7 +1944,7 @@ async function renderCash(snapshot = null) {
   const [orders, cashInfo] = snapshot
     ? [snapshot.orders, snapshot.cashInfo]
     : await Promise.all([
-      API.get('/api/orders'),
+      API.get('/api/orders?view=open'),
       API.get('/api/cash-sessions/current'),
     ]);
 
@@ -2042,7 +2042,7 @@ async function refreshAdminCashIfChanged() {
 
   try {
     const [orders, cashInfo] = await Promise.all([
-      API.get('/api/orders'),
+      API.get('/api/orders?view=open'),
       API.get('/api/cash-sessions/current'),
     ]);
     const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');

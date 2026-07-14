@@ -907,8 +907,7 @@ function eventCheckoutPanel(eventOrders, scope, closeFunctionName, cancelFunctio
 }
 
 window.printEventReceipt = async (orderId, scope) => {
-  const orders = await API.get('/api/orders');
-  const order = orders.find((item) => String(item.id) === String(orderId));
+  const order = await API.get(`/api/orders/${orderId}`).catch(() => null);
   if (!order) return toast('Evento não encontrado para gerar recibo.');
 
   const subtotal = orderSubtotal(order);
@@ -973,7 +972,7 @@ window.printEventReceipt = async (orderId, scope) => {
 
 window.printTableReceipt = async (encoded, scope) => {
   const table = decodedTable(encoded);
-  const orders = await API.get('/api/orders');
+  const orders = await API.get(`/api/orders?view=open&table=${encodeURIComponent(table)}`);
   const openOrders = orders.filter((order) => tableKey(order.table) === table && !order.paid && order.status !== 'cancelado');
   if (!openOrders.length) return toast('Nenhum pedido aberto para gerar pré-conta.');
 

@@ -26,7 +26,7 @@ let customizingItemId = null;
 async function init() {
   const [orderProducts, orders] = await Promise.all([
     API.get('/api/products?usage=orders'),
-    API.get('/api/orders'),
+    API.get('/api/orders?view=open'),
   ]);
 
   products = orderProducts.filter((product) => product.active !== false && product.soldOut !== true);
@@ -124,7 +124,7 @@ function availableTables() {
 }
 
 async function refreshOpenOrders() {
-  const orders = await API.get('/api/orders');
+  const orders = await API.get('/api/orders?view=open');
   openOrders = orders.filter(isOpenOrder);
 }
 

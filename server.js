@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -22,9 +23,28 @@ let pgReady = false;
 let writeQueue = Promise.resolve();
 
 app.use(cors());
+app.use(compression());
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  lastModified: true,
+  setHeaders(res, filePath) {
+    if (/\.(jpg|jpeg|png|webp|svg|ico)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+      return;
+    }
+
+    if (/\.(html)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'no-cache');
+      return;
+    }
+
+    if (/\.(css|js|webmanifest)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    }
+  }
+}));
 
 function queueWrite(task) {
   writeQueue = writeQueue.then(task, task);
@@ -145,6 +165,36 @@ function normalizeOrder(order) {
 
 function openOrderForTable(order, table) {
   return String(order.table || '') === String(table || '') && !order.paid && order.status !== 'cancelado';
+}
+
+function isOpenOrder(order) {
+  return !order.paid && order.status !== 'cancelado';
+}
+
+function isKitchenOrder(order) {
+  return !['cancelado', 'entregue'].includes(order.status);
+}
+
+function filterOrdersForRequest(orders, query = {}) {
+  const view = String(query.view || '').trim();
+  const status = String(query.status || '').trim();
+  const table = String(query.table || '').trim();
+  const date = String(query.date || '').trim();
+  const source = String(query.source || '').trim();
+  const limit = Math.max(Number(query.limit || 0), 0);
+
+  let rows = Array.isArray(orders) ? [...orders] : [];
+
+  if (view === 'open') rows = rows.filter(isOpenOrder);
+  if (view === 'kitchen') rows = rows.filter(isKitchenOrder);
+  if (view === 'active') rows = rows.filter((order) => isOpenOrder(order) || isKitchenOrder(order));
+  if (status) rows = rows.filter((order) => String(order.status || '') === status);
+  if (table) rows = rows.filter((order) => String(order.table || '') === table);
+  if (date) rows = rows.filter((order) => localDate(order.createdAt) === date);
+  if (source) rows = rows.filter((order) => String(order.source || '') === source);
+
+  rows.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  return limit ? rows.slice(0, limit) : rows;
 }
 
 function applyPaymentToOrder(order, payment, paidAt) {
@@ -918,7 +968,14 @@ app.post('/api/quotes/:id/approve', asyncHandler(async (req, res) => {
 
 app.get('/api/orders', asyncHandler(async (req, res) => {
   const db = await readDb();
-  res.json(db.orders);
+  res.json(filterOrdersForRequest(db.orders, req.query));
+}));
+
+app.get('/api/orders/:id', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const order = db.orders.find((item) => String(item.id) === String(req.params.id));
+  if (!order) return res.status(404).json({ error: 'Pedido não encontrado.' });
+  res.json(order);
 }));
 
 app.post('/api/orders', asyncHandler(async (req, res) => {

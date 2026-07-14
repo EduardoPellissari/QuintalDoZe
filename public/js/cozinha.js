@@ -21,6 +21,8 @@ let lastIds = new Set();
 let soundEnabled = false;
 let urgentNotifiedIds = new Set();
 let kitchenOptionsOpen = false;
+let kitchenRefreshing = false;
+let kitchenRefreshQueued = false;
 
 function playTone(frequency = 880, duration = 180, volume = 0.08) {
   if (!soundEnabled) return;
@@ -136,8 +138,34 @@ function isKitchenVisibleToday(order) {
   );
 }
 
+function finishKitchenRefresh() {
+  kitchenRefreshing = false;
+
+  if (kitchenRefreshQueued) {
+    kitchenRefreshQueued = false;
+    render();
+  }
+}
+
 async function render() {
-  const allOrders = await API.get('/api/orders');
+  if (kitchenRefreshing) {
+    kitchenRefreshQueued = true;
+    return;
+  }
+
+  kitchenRefreshing = true;
+
+  try {
+    const allOrders = await API.get('/api/orders?view=kitchen');
+    renderKitchenOrders(allOrders);
+  } catch (err) {
+    console.warn('Nao foi possivel atualizar a cozinha automaticamente.', err);
+  } finally {
+    finishKitchenRefresh();
+  }
+}
+
+function renderKitchenOrders(allOrders) {
   const orders = orderByTime(allOrders.filter(isKitchenVisibleToday));
 
   const ids = new Set(orders.map((order) => order.id));
@@ -367,4 +395,9 @@ async function statusOrder(id, status) {
 window.statusOrder = statusOrder;
 
 render();
-setInterval(render, 1000);
+setInterval(() => {
+  if (!document.hidden) render();
+}, 2500);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) render();
+});

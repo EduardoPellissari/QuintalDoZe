@@ -48,7 +48,7 @@ async function cash(snapshot = null) {
   const [orders, cashInfo] = snapshot
     ? [snapshot.orders, snapshot.cashInfo]
     : await Promise.all([
-      API.get('/api/orders'),
+      API.get('/api/orders?view=open'),
       API.get('/api/cash-sessions/current'),
     ]);
 
@@ -143,7 +143,7 @@ async function refreshCashIfChanged() {
 
   try {
     const [orders, cashInfo] = await Promise.all([
-      API.get('/api/orders'),
+      API.get('/api/orders?view=open'),
       API.get('/api/cash-sessions/current'),
     ]);
     const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
