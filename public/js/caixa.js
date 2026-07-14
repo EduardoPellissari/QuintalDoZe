@@ -19,6 +19,9 @@ setText('pageSub', txt('caixa.subtitulo', 'Fechamento e relatórios.'));
 
 let cashReportDate = todayDateValue();
 let selectedCashTable = '';
+let activeCashTab = 'cash';
+let cashLastSignature = '';
+let cashAutoRefreshing = false;
 
 document.getElementById('sideNav').addEventListener('click', (event) => {
   const button = event.target.closest('button[data-tab]');
@@ -26,20 +29,28 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
 
   document.querySelectorAll('nav button').forEach((item) => item.classList.remove('active'));
   button.classList.add('active');
+  activeCashTab = button.dataset.tab === 'reports' ? 'reports' : 'cash';
 
   if (button.dataset.tab === 'reports') {
-    if (!isAdmin()) return cash();
+    if (!isAdmin()) {
+      activeCashTab = 'cash';
+      return cash();
+    }
     reports();
   }
   else cash();
 });
 
-async function cash() {
-  const [orders, cashInfo] = await Promise.all([
-    API.get('/api/orders'),
-    API.get('/api/cash-sessions/current'),
-  ]);
+async function cash(snapshot = null) {
+  const [orders, cashInfo] = snapshot
+    ? [snapshot.orders, snapshot.cashInfo]
+    : await Promise.all([
+      API.get('/api/orders'),
+      API.get('/api/cash-sessions/current'),
+    ]);
+
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
+  cashLastSignature = cashOpenOrdersSignature(openOrders, cashInfo);
   const eventOrders = openOrders.filter(isEventOrder);
   const restaurantOrders = openOrders.filter((order) => !isEventOrder(order));
   const groups = groupOrdersByTable(restaurantOrders);
@@ -104,6 +115,35 @@ async function cash() {
   `;
 
   bindPaymentControls('cash');
+}
+
+function shouldPauseCashAutoRefresh() {
+  if (activeCashTab !== 'cash') return true;
+  if (document.hidden) return true;
+  return isEditingFormField(document.getElementById('content') || document);
+}
+
+async function refreshCashIfChanged() {
+  if (cashAutoRefreshing || shouldPauseCashAutoRefresh()) return;
+
+  cashAutoRefreshing = true;
+
+  try {
+    const [orders, cashInfo] = await Promise.all([
+      API.get('/api/orders'),
+      API.get('/api/cash-sessions/current'),
+    ]);
+    const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
+    const nextSignature = cashOpenOrdersSignature(openOrders, cashInfo);
+
+    if (nextSignature !== cashLastSignature) {
+      await cash({ orders, cashInfo });
+    }
+  } catch (err) {
+    console.warn('Nao foi possivel atualizar o caixa automaticamente.', err);
+  } finally {
+    cashAutoRefreshing = false;
+  }
 }
 
 window.selectCashTable = (encoded) => {
@@ -283,3 +323,4 @@ async function cancelOrder(id) {
 
 window.cancelOrder = cancelOrder;
 cash();
+setInterval(refreshCashIfChanged, 4000);

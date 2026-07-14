@@ -30,6 +30,9 @@ let quoteProducts = [];
 let quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
 let adminReportDate = todayDateValue();
 let selectedAdminCashTable = '';
+let activeAdminTab = 'users';
+let adminCashLastSignature = '';
+let adminCashAutoRefreshing = false;
 
 const quoteTypes = ['Café da tarde', 'Happy hour', 'Coffee break', 'Almoço/Jantar', 'Evento personalizado'];
 const quoteStatuses = [
@@ -68,6 +71,7 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
 
   document.querySelectorAll('nav button').forEach((item) => item.classList.remove('active'));
   button.classList.add('active');
+  activeAdminTab = button.dataset.tab || 'users';
 
   editingUser = null;
   editingProduct = null;
@@ -1095,15 +1099,19 @@ window.printQuote = async (id) => {
   });
 };
 
-async function renderCash() {
+async function renderCash(snapshot = null) {
   setText('pageTitle', txt('admin.caixa.titulo', 'Caixa'));
   setText('pageSub', txt('admin.caixa.subtitulo', 'Fechamento de pedidos em aberto dentro do painel admin.'));
 
-  const [orders, cashInfo] = await Promise.all([
-    API.get('/api/orders'),
-    API.get('/api/cash-sessions/current'),
-  ]);
+  const [orders, cashInfo] = snapshot
+    ? [snapshot.orders, snapshot.cashInfo]
+    : await Promise.all([
+      API.get('/api/orders'),
+      API.get('/api/cash-sessions/current'),
+    ]);
+
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
+  adminCashLastSignature = cashOpenOrdersSignature(openOrders, cashInfo);
   const eventOrders = openOrders.filter(isEventOrder);
   const restaurantOrders = openOrders.filter((order) => !isEventOrder(order));
   const groups = groupOrdersByTable(restaurantOrders);
@@ -1170,6 +1178,35 @@ async function renderCash() {
   `;
 
   bindPaymentControls('admin');
+}
+
+function shouldPauseAdminCashAutoRefresh() {
+  if (activeAdminTab !== 'cash') return true;
+  if (document.hidden) return true;
+  return isEditingFormField(content);
+}
+
+async function refreshAdminCashIfChanged() {
+  if (adminCashAutoRefreshing || shouldPauseAdminCashAutoRefresh()) return;
+
+  adminCashAutoRefreshing = true;
+
+  try {
+    const [orders, cashInfo] = await Promise.all([
+      API.get('/api/orders'),
+      API.get('/api/cash-sessions/current'),
+    ]);
+    const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
+    const nextSignature = cashOpenOrdersSignature(openOrders, cashInfo);
+
+    if (nextSignature !== adminCashLastSignature) {
+      await renderCash({ orders, cashInfo });
+    }
+  } catch (err) {
+    console.warn('Nao foi possivel atualizar o caixa do admin automaticamente.', err);
+  } finally {
+    adminCashAutoRefreshing = false;
+  }
 }
 
 window.selectAdminCashTable = (encoded) => {
@@ -1350,3 +1387,4 @@ window.adminCancelOrder = async (id) => {
 
 renderUsers();
 preloadEmbeddedAdminPages();
+setInterval(refreshAdminCashIfChanged, 4000);

@@ -189,6 +189,40 @@ function orderFinalTotal(order) {
   return Math.max(Number(order?.total ?? fallback), 0);
 }
 
+function cashOpenOrdersSignature(openOrders, cashInfo = {}) {
+  const orders = [...(openOrders || [])]
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+    .map((order) => ({
+      id: order.id,
+      table: order.table,
+      status: order.status,
+      paid: order.paid === true,
+      subtotal: orderSubtotal(order),
+      total: order.total ?? null,
+      createdAt: order.createdAt || '',
+      readyAt: order.readyAt || '',
+      items: (order.items || []).map((item) => ({
+        id: item.id,
+        name: item.name,
+        qty: Number(item.qty || 1),
+        price: Number(item.price || 0),
+        extraPrice: Number(item.extraPrice || 0),
+        note: item.note || '',
+      })),
+    }));
+
+  return JSON.stringify({
+    cashSession: cashInfo?.id || cashInfo?.openedAt || cashInfo?.status || '',
+    orders,
+  });
+}
+
+function isEditingFormField(root = document) {
+  const active = document.activeElement;
+  if (!active || !root.contains(active)) return false;
+  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable;
+}
+
 function paymentFieldId(id, scope, field) {
   return `${scope}-${field}-${id}`;
 }
