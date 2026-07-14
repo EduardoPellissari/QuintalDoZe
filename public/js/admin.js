@@ -1030,6 +1030,7 @@ function quoteCard(quote) {
 
       <div class="actions" style="margin-top:12px">
         <button class="soft" onclick="editQuote(${quote.id})">Editar</button>
+        <button class="soft" onclick="printQuote(${quote.id})">PDF</button>
         <button class="soft whatsapp-action" onclick="sendQuoteWhatsapp(${quote.id})">WhatsApp</button>
         ${quote.convertedOrderId ? `<span class="badge ok">Pedido #${quote.convertedOrderId}</span>` : `<button class="primary compact-action" onclick="approveQuote(${quote.id})">Aprovar e enviar</button>`}
         <button class="danger" onclick="deleteQuote(${quote.id})">Excluir</button>
@@ -1068,19 +1069,18 @@ window.sendQuoteWhatsapp = async (id) => {
   const message = quoteWhatsappMessage(quote);
   const phoneUrl = whatsappPhoneUrl(quote.phone);
 
-  openQuotePdfTab(quote);
   const copied = await copyText(message).catch(() => false);
 
   if (!phoneUrl) {
     return toast(copied
-      ? 'PDF aberto e mensagem copiada. Cadastre um telefone para abrir o WhatsApp direto.'
-      : 'PDF aberto. Cadastre o telefone do cliente para abrir o WhatsApp direto.');
+      ? 'Mensagem copiada. Cadastre um telefone para abrir o WhatsApp direto.'
+      : 'Cadastre o telefone do cliente para abrir o WhatsApp direto.');
   }
 
   window.open(`${phoneUrl}?text=${encodeURIComponent(message)}`, '_blank');
   toast(copied
-    ? 'PDF aberto e mensagem aberta no WhatsApp. Anexe o PDF na conversa.'
-    : 'PDF aberto e WhatsApp iniciado. Anexe o PDF na conversa.');
+    ? 'Mensagem aberta no WhatsApp. Anexe o PDF baixado na conversa.'
+    : 'WhatsApp iniciado. Anexe o PDF baixado na conversa.');
 };
 
 async function saveQuote(event) {
