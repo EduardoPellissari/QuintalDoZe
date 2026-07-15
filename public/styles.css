@@ -5226,3 +5226,112 @@ html.mobile-layout .setup-grid,
 html.mobile-layout .customer-history-grid {
   grid-template-columns:1fr;
 }
+
+/* ==================================================
+   REVISÃO VISUAL GERAL - textos longos e mobile
+   ================================================== */
+.dashboard-list,
+.dashboard-list-row,
+.dashboard-list-row span,
+.availability-columns,
+.availability-columns > div,
+.availability-list,
+.event-checkout-card,
+.event-checkout-head,
+.event-meta-grid span {
+  min-width:0;
+  max-width:100%;
+}
+
+.dashboard-list-row {
+  width:100%;
+  overflow:hidden;
+}
+
+.dashboard-list-row b,
+.dashboard-list-row small {
+  max-width:100%;
+}
+
+.availability-chip {
+  min-width:0;
+  max-width:100%;
+  white-space:normal;
+}
+
+.availability-chip span {
+  display:block;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.event-checkout-head {
+  flex-wrap:wrap;
+}
+
+.event-checkout-head h3,
+.event-meta-grid span {
+  overflow-wrap:break-word;
+}
+
+.event-checkout-total {
+  min-width:0;
+}
+
+.kitchen-order-heading h2 {
+  max-width:100%;
+  word-break:normal;
+  overflow-wrap:normal;
+  hyphens:none;
+}
+
+html.mobile-layout .dashboard-list-row {
+  align-items:stretch;
+}
+
+html.mobile-layout .dashboard-list-row span,
+html.mobile-layout .dashboard-list-row b,
+html.mobile-layout .dashboard-list-row small {
+  width:100%;
+}
+
+html.mobile-layout .dashboard-list-row b,
+html.mobile-layout .dashboard-list-row small {
+  white-space:normal;
+  overflow-wrap:break-word;
+}
+
+html.mobile-layout .dashboard-list-row em {
+  align-self:flex-start;
+  white-space:nowrap;
+}
+
+html.mobile-layout .availability-chip {
+  width:100%;
+}
+
+html.mobile-layout .event-checkout-head,
+html.mobile-layout .table-checkout-head {
+  flex-direction:column;
+  align-items:stretch;
+}
+
+html.mobile-layout .event-checkout-total {
+  align-items:flex-start;
+}
+
+html.mobile-layout .kitchen-card-top {
+  flex-direction:column;
+}
+
+html.mobile-layout .kitchen-card-badges {
+  max-width:100%;
+  flex-direction:row;
+  align-items:flex-start;
+}
+
+html.mobile-layout .kitchen-card h2 {
+  font-size:clamp(27px, 7.4vw, 32px);
+}
