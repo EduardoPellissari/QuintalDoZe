@@ -45,12 +45,15 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
 });
 
 async function cash(snapshot = null) {
-  const [orders, cashInfo] = snapshot
-    ? [snapshot.orders, snapshot.cashInfo]
+  const [orders, allOrders, cashInfo, settings] = snapshot
+    ? [snapshot.orders, snapshot.allOrders || snapshot.orders, snapshot.cashInfo, snapshot.settings]
     : await Promise.all([
       API.get('/api/orders?view=open'),
+      API.get('/api/orders'),
       API.get('/api/cash-sessions/current'),
+      API.get('/api/settings'),
     ]);
+  if (settings) saveSystemSettingsCache(settings);
 
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
   cashLastSignature = cashOpenOrdersSignature(openOrders, cashInfo);
@@ -121,6 +124,7 @@ async function cash(snapshot = null) {
     </section>
 
     ${cashFilterBar(cashFilter, filterCounts, 'setCashFilter')}
+    ${cashDailySummaryPanel(allOrders, cashInfo)}
     ${cashSessionPanel(cashInfo, 'cash')}
     ${eventsPanel}
     ${restaurantPanel}
@@ -142,9 +146,11 @@ async function refreshCashIfChanged() {
   cashAutoRefreshing = true;
 
   try {
-    const [orders, cashInfo] = await Promise.all([
+    const [orders, allOrders, cashInfo, settings] = await Promise.all([
       API.get('/api/orders?view=open'),
+      API.get('/api/orders'),
       API.get('/api/cash-sessions/current'),
+      API.get('/api/settings'),
     ]);
     const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
     const nextSignature = cashOpenOrdersSignature(openOrders, cashInfo);
@@ -152,7 +158,7 @@ async function refreshCashIfChanged() {
     if (nextSignature !== cashLastSignature) {
       const newOrderCount = countNewCashOrders(openOrders, cashKnownOrderIds);
       if (newOrderCount) notifyCashNewOrders(newOrderCount);
-      await cash({ orders, cashInfo });
+      await cash({ orders, allOrders, cashInfo, settings });
     }
   } catch (err) {
     console.warn('Nao foi possivel atualizar o caixa automaticamente.', err);

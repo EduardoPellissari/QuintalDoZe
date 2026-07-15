@@ -8,6 +8,7 @@ requireRole(['admin']);
 setupNav([
   { type: 'group', label: 'Geral' },
   { type: 'button', tab: 'dashboard', label: '📊 Resumo', active: true },
+  { type: 'button', tab: 'setup', label: '🧭 Implantação' },
   { type: 'group', label: 'Configuração' },
   { type: 'button', tab: 'users', labelKey: 'menu.usuarios' },
   { type: 'button', tab: 'products', labelKey: 'menu.produtos' },
@@ -41,6 +42,7 @@ let adminCashLastSignature = '';
 let adminCashAutoRefreshing = false;
 let adminCashKnownOrderIds = new Set();
 let adminCashFilter = 'all';
+let cachedSystemSettings = {};
 
 const quoteTypes = ['Café da tarde', 'Happy hour', 'Coffee break', 'Almoço/Jantar', 'Evento personalizado'];
 const quoteStatuses = [
@@ -148,6 +150,7 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
   quoteItems = [{ productId: null, description: '', qty: 1, unitPrice: 0 }];
 
   if (button.dataset.tab === 'dashboard') renderDashboard();
+  if (button.dataset.tab === 'setup') renderSetup();
   if (button.dataset.tab === 'users') renderUsers();
   if (button.dataset.tab === 'products') renderProducts();
   if (button.dataset.tab === 'quotes') renderQuotes();
@@ -167,6 +170,179 @@ window.openAdminTab = openAdminTab;
 window.downloadSystemBackup = () => {
   window.location.href = '/api/backup';
   toast('Backup dos dados iniciado.');
+};
+
+function setupCheckItem(done, title, detail) {
+  return `
+    <div class="setup-check-item ${done ? 'done' : ''}">
+      <span>${done ? 'OK' : 'Pendente'}</span>
+      <b>${escapeHtml(title)}</b>
+      <small>${escapeHtml(detail)}</small>
+    </div>
+  `;
+}
+
+function setupSettingsFromForm(fallback = cachedSystemSettings) {
+  return {
+    restaurantName: document.getElementById('setupRestaurantName')?.value || fallback.restaurantName || 'Quintal do Zé',
+    tableCount: Number(document.getElementById('setupTableCount')?.value || fallback.tableCount || 30),
+    receiptMessage: document.getElementById('setupReceiptMessage')?.value || fallback.receiptMessage || 'Obrigado pela preferência. Volte sempre!',
+    trainingMode: document.getElementById('setupTrainingMode')?.checked === true,
+    onboardingCompleted: fallback.onboardingCompleted === true,
+  };
+}
+
+function cacheSettings(settings) {
+  cachedSystemSettings = settings || {};
+  saveSystemSettingsCache(cachedSystemSettings);
+}
+
+async function renderSetup() {
+  setText('pageTitle', 'Implantação');
+  setText('pageSub', 'Prepare o sistema para operar no restaurante sem precisar mexer em código.');
+
+  const [settings, users, products, customers, health] = await Promise.all([
+    API.get('/api/settings'),
+    API.get('/api/users'),
+    API.get('/api/products'),
+    API.get('/api/customers'),
+    API.get('/api/health'),
+  ]);
+  cacheSettings(settings);
+
+  const adminUser = users.find((user) => user.role === 'admin');
+  const orderProducts = products.filter((product) => productUsageValue(product) === 'orders');
+  const quoteProducts = products.filter((product) => productUsageValue(product) === 'quotes');
+  const lowStockProducts = products.filter(productLowStock);
+
+  content.innerHTML = `
+    <section class="setup-page">
+      ${settings.trainingMode ? `
+        <div class="training-banner">
+          <b>Modo treinamento ativo</b>
+          <span>Pedidos e orçamentos criados agora ficam marcados como teste e podem ser apagados depois.</span>
+        </div>
+      ` : ''}
+
+      <section class="panel setup-hero">
+        <div>
+          <span>Primeiros passos</span>
+          <h3>Sistema pronto para operar</h3>
+          <p>Use esta tela como checklist antes de entregar o sistema para a equipe.</p>
+        </div>
+        <button class="primary compact-action" type="button" onclick="completeSetup()">Marcar implantação concluída</button>
+      </section>
+
+      <section class="setup-grid">
+        <div class="panel">
+          <div class="admin-form-head compact-head">
+            <div>
+              <h3>Checklist</h3>
+              <p>O que já está preparado para começar a operação.</p>
+            </div>
+            <span class="badge ${settings.onboardingCompleted ? 'ok' : 'warn'}">${settings.onboardingCompleted ? 'Concluído' : 'Em preparação'}</span>
+          </div>
+
+          <div class="setup-check-list">
+            ${setupCheckItem(users.length >= 4, 'Funcionários cadastrados', `${users.length} usuário(s) no sistema`)}
+            ${setupCheckItem(Boolean(adminUser?.passwordUpdatedAt), 'Senha do administrador protegida', adminUser?.passwordUpdatedAt ? `Alterada em ${dateTime(adminUser.passwordUpdatedAt)}` : 'Altere a senha do admin na aba Usuários')}
+            ${setupCheckItem(orderProducts.length > 0, 'Produtos do atendimento', `${orderProducts.length} item(ns) aparecem para o atendente`)}
+            ${setupCheckItem(quoteProducts.length > 0, 'Produtos de orçamento separados', `${quoteProducts.length} item(ns) exclusivos para orçamento`)}
+            ${setupCheckItem(settings.tableCount > 0, 'Mesas configuradas', `${settings.tableCount} mesa(s) para seleção rápida`)}
+            ${setupCheckItem(health.storage === 'postgres', 'Banco persistente', health.storage === 'postgres' ? 'Dados salvos no PostgreSQL' : 'Rodando com arquivo local')}
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="admin-form-head compact-head">
+            <div>
+              <h3>Configurações rápidas</h3>
+              <p>Ajustes que deixam o uso diário mais simples.</p>
+            </div>
+          </div>
+
+          <form id="setupForm" class="setup-form">
+            <label>Nome do restaurante
+              <input id="setupRestaurantName" value="${escapeHtml(settings.restaurantName || 'Quintal do Zé')}">
+            </label>
+
+            <label>Quantidade de mesas
+              <input id="setupTableCount" type="number" min="1" max="200" step="1" value="${Number(settings.tableCount || 30)}">
+            </label>
+
+            <label>Mensagem padrão dos recibos
+              <input id="setupReceiptMessage" value="${escapeHtml(settings.receiptMessage || '')}">
+            </label>
+
+            <label class="setup-toggle">
+              <input id="setupTrainingMode" type="checkbox" ${settings.trainingMode ? 'checked' : ''}>
+              <span>Ativar modo treinamento</span>
+            </label>
+
+            <button class="primary" type="submit">Salvar configurações</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="dashboard-cards setup-actions">
+        <button class="dash-card setup-action-card" type="button" onclick="openAdminTab('users')"><b>Usuários</b><span>Cadastrar equipe e trocar senhas</span></button>
+        <button class="dash-card setup-action-card" type="button" onclick="openAdminTab('products')"><b>Produtos</b><span>Cardápio, orçamento e estoque</span></button>
+        <button class="dash-card setup-action-card" type="button" onclick="openAdminTab('quotes')"><b>Orçamentos</b><span>Clientes e propostas comerciais</span></button>
+        <button class="dash-card setup-action-card" type="button" onclick="downloadSystemBackup()"><b>Backup</b><span>Baixar cópia dos dados</span></button>
+      </section>
+
+      <section class="panel">
+        <div class="admin-form-head compact-head">
+          <div>
+            <h3>Treinamento e alertas</h3>
+            <p>Use para testar a equipe sem bagunçar o dia real.</p>
+          </div>
+          <button class="danger" type="button" onclick="clearTrainingData()">Apagar testes</button>
+        </div>
+
+        <div class="dashboard-mini-metrics">
+          <span><b>${customers.length}</b> cliente(s) no histórico</span>
+          <span><b>${lowStockProducts.length}</b> produto(s) com estoque baixo</span>
+          <span><b>${settings.trainingMode ? 'Ativo' : 'Inativo'}</b> modo treinamento</span>
+        </div>
+      </section>
+    </section>
+  `;
+
+  document.getElementById('setupForm').onsubmit = saveSetupSettings;
+}
+
+async function saveSetupSettings(event) {
+  event.preventDefault();
+
+  await withActionLock('save-setup-settings', async () => {
+    const settings = await API.put('/api/settings', setupSettingsFromForm());
+    cacheSettings(settings);
+    toast('Configurações salvas.');
+    renderSetup();
+  }, event.submitter);
+}
+
+window.completeSetup = async () => {
+  await withActionLock('complete-setup', async () => {
+    const settings = await API.put('/api/settings', {
+      ...setupSettingsFromForm(),
+      onboardingCompleted: true,
+    });
+    cacheSettings(settings);
+    toast('Implantação marcada como concluída.');
+    renderSetup();
+  });
+};
+
+window.clearTrainingData = async () => {
+  if (!confirm('Apagar pedidos, orçamentos, clientes e caixas marcados como treinamento? Os dados reais serão mantidos.')) return;
+
+  await withActionLock('clear-training-data', async () => {
+    const result = await API.del('/api/training-data');
+    toast(`Testes apagados: ${result.removed.orders} pedido(s) e ${result.removed.quotes} orçamento(s).`);
+    renderSetup();
+  });
 };
 
 window.openQuoteForEdit = async (id) => {
@@ -314,7 +490,8 @@ function dashboardOpenOrderRows(openOrders = []) {
 function dashboardProductAlerts(products = []) {
   const soldOut = products.filter((product) => product.soldOut === true);
   const inactive = products.filter((product) => product.active === false);
-  const rows = [...soldOut, ...inactive].slice(0, 6);
+  const lowStock = products.filter(productLowStock);
+  const rows = [...soldOut, ...lowStock, ...inactive].slice(0, 6);
 
   return `
     <div class="dashboard-list">
@@ -322,11 +499,11 @@ function dashboardProductAlerts(products = []) {
         <div class="dashboard-list-row">
           <span>
             <b>${escapeHtml(product.name || 'Produto')}</b>
-            <small>${escapeHtml(product.category || 'Geral')} • ${productUsageLabel(product)}</small>
+            <small>${escapeHtml(product.category || 'Geral')} • ${productUsageLabel(product)} • ${productStockLabel(product)}</small>
           </span>
-          <em>${product.soldOut ? 'Esgotado' : 'Inativo'}</em>
+          <em>${product.soldOut ? 'Esgotado' : productLowStock(product) ? 'Estoque baixo' : 'Inativo'}</em>
         </div>
-      `).join('') : '<p class="muted">Nenhum produto esgotado ou inativo.</p>'}
+      `).join('') : '<p class="muted">Nenhum produto esgotado, baixo ou inativo.</p>'}
     </div>
   `;
 }
@@ -335,13 +512,15 @@ async function renderDashboard() {
   setText('pageTitle', 'Resumo');
   setText('pageSub', 'Visão rápida do dia, operação e orçamentos que precisam de atenção.');
 
-  const [orders, products, quotes, cashInfo, activityLog] = await Promise.all([
+  const [orders, products, quotes, cashInfo, activityLog, settings] = await Promise.all([
     API.get('/api/orders'),
     API.get('/api/products'),
     API.get('/api/quotes'),
     API.get('/api/cash-sessions/current'),
     API.get('/api/activity-log'),
+    API.get('/api/settings'),
   ]);
+  cacheSettings(settings);
 
   const today = todayDateValue();
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
@@ -353,6 +532,7 @@ async function renderDashboard() {
   const salesToday = paidToday.reduce((sum, order) => sum + orderFinalTotal(order), 0);
   const occupiedTables = groupOrdersByTable(restaurantOrders).length;
   const soldOutProducts = products.filter((product) => product.soldOut === true).length;
+  const lowStockProducts = products.filter(productLowStock).length;
   const quoteWaiting = quotes.filter((quote) => quote.status === 'aguardando').length;
   const quoteFollowUps = quoteFollowUpItems(quotes, 99).length;
   const openQuoteTotal = quotes
@@ -361,6 +541,13 @@ async function renderDashboard() {
 
   content.innerHTML = `
     <section class="admin-dashboard">
+      ${settings.trainingMode ? `
+        <div class="training-banner">
+          <b>Modo treinamento ativo</b>
+          <span>Pedidos e orçamentos criados agora ficam marcados como teste.</span>
+        </div>
+      ` : ''}
+
       <div class="dashboard-hero">
         <div>
           <span>Painel do dia</span>
@@ -380,6 +567,7 @@ async function renderDashboard() {
         <div class="dash-card"><b>${readyOrders.length}</b><span>Prontos</span></div>
         <div class="dash-card"><b>${quoteWaiting}</b><span>Orçamentos aguardando</span></div>
         <div class="dash-card"><b>${soldOutProducts}</b><span>Itens esgotados</span></div>
+        <div class="dash-card"><b>${lowStockProducts}</b><span>Estoque baixo</span></div>
       </section>
 
       <section class="dashboard-quick-actions">
@@ -388,6 +576,7 @@ async function renderDashboard() {
         <button class="soft" type="button" onclick="openAdminTab('orders')">Abrir pedidos</button>
         <button class="soft" type="button" onclick="openAdminTab('kitchen')">Ver cozinha</button>
         <button class="soft" type="button" onclick="openAdminTab('products')">Produtos</button>
+        <button class="soft" type="button" onclick="openAdminTab('setup')">Implantação</button>
         <button class="soft" type="button" onclick="downloadSystemBackup()">Backup</button>
       </section>
 
@@ -772,10 +961,32 @@ function productStatusBadge(product) {
   return 'ok';
 }
 
+function productLowStock(product) {
+  return product?.stockEnabled === true &&
+    product.active !== false &&
+    Number(product.stockQty || 0) <= Number(product.lowStockAt ?? 5);
+}
+
+function productStockLabel(product) {
+  if (product?.stockEnabled !== true) return 'Sem controle';
+  const qty = Number(product.stockQty || 0);
+  if (qty <= 0) return 'Sem estoque';
+  if (productLowStock(product)) return `${qty} un. baixo`;
+  return `${qty} un.`;
+}
+
+function productStockBadge(product) {
+  if (product?.stockEnabled !== true) return '';
+  if (Number(product.stockQty || 0) <= 0) return 'danger';
+  if (productLowStock(product)) return 'warn';
+  return 'ok';
+}
+
 function productAvailabilityPanel(products) {
   const orderProducts = products.filter((product) => productUsageValue(product) === 'orders' && product.active !== false);
   const available = orderProducts.filter((product) => product.soldOut !== true);
   const soldOut = orderProducts.filter((product) => product.soldOut === true);
+  const lowStock = orderProducts.filter(productLowStock);
 
   if (!orderProducts.length) return '';
 
@@ -783,11 +994,11 @@ function productAvailabilityPanel(products) {
     <section class="panel product-availability-panel">
       <div class="admin-form-head">
         <div>
-          <h3>Disponibilidade rápida</h3>
-          <p>Marque itens como esgotados para eles sumirem da tela de pedidos do atendente.</p>
+            <h3>Disponibilidade rápida</h3>
+            <p>Marque itens como esgotados ou acompanhe estoque baixo para eles sumirem da tela do atendente no momento certo.</p>
+          </div>
+          <span class="badge ${soldOut.length || lowStock.length ? 'warn' : 'ok'}">${soldOut.length} esgotado(s) • ${lowStock.length} baixo(s)</span>
         </div>
-        <span class="badge ${soldOut.length ? 'warn' : 'ok'}">${soldOut.length} esgotado(s)</span>
-      </div>
 
       <div class="availability-columns">
         <div>
@@ -827,6 +1038,7 @@ async function renderProducts() {
   const quoteOnlyProducts = products.filter((product) => productUsageValue(product) === 'quotes');
   const activeProducts = products.filter((product) => product.active !== false).length;
   const soldOutProducts = products.filter((product) => product.soldOut === true).length;
+  const lowStockProducts = products.filter(productLowStock).length;
 
   content.innerHTML = `
     <section class="dashboard-cards">
@@ -834,6 +1046,7 @@ async function renderProducts() {
       <div class="dash-card"><b>${orderProducts.length}</b><span>Pedidos / atendente</span></div>
       <div class="dash-card"><b>${quoteOnlyProducts.length}</b><span>Orçamentos</span></div>
       <div class="dash-card"><b>${soldOutProducts}</b><span>Esgotados</span></div>
+      <div class="dash-card"><b>${lowStockProducts}</b><span>Estoque baixo</span></div>
     </section>
 
     ${productAvailabilityPanel(products)}
@@ -878,6 +1091,21 @@ async function renderProducts() {
               </select>
             </label>
 
+            <label>Controle de estoque
+              <select id="pStockEnabled">
+                <option value="false">Não controlar</option>
+                <option value="true">Controlar estoque</option>
+              </select>
+            </label>
+
+            <label>Quantidade em estoque
+              <input id="pStockQty" type="number" min="0" step="1" placeholder="Ex: 20" value="${editingProduct?.stockEnabled ? Number(editingProduct?.stockQty || 0) : ''}">
+            </label>
+
+            <label>Alerta de estoque baixo
+              <input id="pLowStockAt" type="number" min="0" step="1" placeholder="Ex: 5" value="${editingProduct?.stockEnabled ? Number(editingProduct?.lowStockAt ?? 5) : 5}">
+            </label>
+
             <label class="full">${txt('admin.produtos.descricao', 'Descrição')}
               <textarea id="pDesc" placeholder="${txt('admin.produtos.placeholderDescricao', 'Descreva o produto...')}">${editingProduct?.description || ''}</textarea>
             </label>
@@ -906,6 +1134,7 @@ async function renderProducts() {
                 <th>${txt('admin.produtos.colCategoria', 'Categoria')}</th>
                 <th>${txt('admin.produtos.colPreco', 'Preço')}</th>
                 <th>Lista</th>
+                <th>Estoque</th>
                 <th>${txt('admin.produtos.colStatus', 'Status')}</th>
                 <th>${txt('admin.produtos.colAcoes', 'Ações')}</th>
               </tr>
@@ -917,6 +1146,7 @@ async function renderProducts() {
                   <td>${product.category || '-'}</td>
                   <td>${money(product.price)}</td>
                   <td><span class="badge ${productUsageValue(product) === 'quotes' ? 'warn' : 'ok'}">${productUsageLabel(product)}</span></td>
+                  <td><span class="${productStockBadge(product) ? `badge ${productStockBadge(product)}` : 'muted'}">${productStockLabel(product)}</span></td>
                   <td><span class="badge ${productStatusBadge(product)}">${productStatusLabel(product)}</span></td>
                   <td>
                     <div class="actions">
@@ -937,6 +1167,7 @@ async function renderProducts() {
   if (editingProduct) {
     document.getElementById('pStatus').value = productStatusValue(editingProduct);
     document.getElementById('pUsage').value = productUsageValue(editingProduct);
+    document.getElementById('pStockEnabled').value = editingProduct.stockEnabled ? 'true' : 'false';
   }
 
   const cancel = document.getElementById('cancelProduct');
@@ -962,6 +1193,9 @@ async function saveProduct(event) {
     active: status !== 'inactive',
     soldOut: status === 'soldOut',
     usage: document.getElementById('pUsage').value,
+    stockEnabled: document.getElementById('pStockEnabled').value === 'true',
+    stockQty: Number(document.getElementById('pStockQty').value || 0),
+    lowStockAt: Number(document.getElementById('pLowStockAt').value || 0),
   };
 
   await withActionLock('admin-save-product', async () => {
@@ -1561,6 +1795,34 @@ function quotePreviewPanel() {
   return `<section class="panel quote-preview-panel" id="quotePreviewPanel">${quotePreviewMarkup()}</section>`;
 }
 
+function customerHistoryPanel(customers = []) {
+  const recentCustomers = customers.slice(0, 6);
+
+  return `
+    <section class="panel customer-history-panel">
+      <div class="admin-form-head compact-head">
+        <div>
+          <h3>Clientes recentes</h3>
+          <p>Reaproveite dados de contato e histórico para montar orçamento mais rápido.</p>
+        </div>
+        <span class="badge blue">${customers.length} cliente(s)</span>
+      </div>
+
+      <div class="customer-history-grid">
+        ${recentCustomers.length ? recentCustomers.map((customer) => `
+          <button class="customer-history-card" type="button" onclick="useQuoteCustomer(${customer.id})">
+            <span>
+              <b>${escapeHtml(customer.name || 'Cliente')}</b>
+              <small>${escapeHtml(customer.phone || 'Sem telefone')} • ${escapeHtml(customer.lastEventType || 'Sem evento')}</small>
+            </span>
+            <em>${customer.quotesCount || 0} orçamento(s) • ${money(customer.totalQuoted || 0)}</em>
+          </button>
+        `).join('') : '<p class="muted">Os clientes aparecerão aqui quando os primeiros orçamentos forem salvos.</p>'}
+      </div>
+    </section>
+  `;
+}
+
 function updateQuotePreview() {
   const panel = document.getElementById('quotePreviewPanel');
   if (panel) panel.innerHTML = quotePreviewMarkup();
@@ -1578,9 +1840,10 @@ async function renderQuotes() {
   setText('pageTitle', 'Orçamentos');
   setText('pageSub', 'Monte propostas para café da tarde, happy hour, coffee break e eventos.');
 
-  const [quotes, products] = await Promise.all([
+  const [quotes, products, customers] = await Promise.all([
     API.get('/api/quotes'),
     API.get('/api/products?usage=quotes'),
+    API.get('/api/customers'),
   ]);
   quoteProducts = products
     .filter((product) => product.active !== false && product.soldOut !== true)
@@ -1592,6 +1855,7 @@ async function renderQuotes() {
     ${quoteSummaryCards(quotes)}
     ${quoteFunnelPanel(quotes)}
     ${quoteFollowUpPanel(quotes)}
+    ${customerHistoryPanel(customers)}
 
     <div class="admin-layout admin-quotes">
       <div class="quote-workbench">
@@ -1951,16 +2215,36 @@ window.printQuote = async (id) => {
   openQuotePdfTab(quote);
 };
 
+window.useQuoteCustomer = async (id) => {
+  const customers = await API.get('/api/customers');
+  const customer = customers.find((item) => Number(item.id) === Number(id));
+  if (!customer) return toast('Cliente não encontrado.');
+
+  const nameInput = document.getElementById('qClientName');
+  const phoneInput = document.getElementById('qPhone');
+  const eventInput = document.getElementById('qEventType');
+
+  if (nameInput) nameInput.value = customer.name || '';
+  if (phoneInput) phoneInput.value = customer.phone || '';
+  if (eventInput && customer.lastEventType) eventInput.value = customer.lastEventType;
+
+  updateQuotePreview();
+  toast('Cliente aplicado ao orçamento.');
+};
+
 async function renderCash(snapshot = null) {
   setText('pageTitle', txt('admin.caixa.titulo', 'Caixa'));
   setText('pageSub', txt('admin.caixa.subtitulo', 'Fechamento de pedidos em aberto dentro do painel admin.'));
 
-  const [orders, cashInfo] = snapshot
-    ? [snapshot.orders, snapshot.cashInfo]
+  const [orders, allOrders, cashInfo, settings] = snapshot
+    ? [snapshot.orders, snapshot.allOrders || snapshot.orders, snapshot.cashInfo, snapshot.settings]
     : await Promise.all([
       API.get('/api/orders?view=open'),
+      API.get('/api/orders'),
       API.get('/api/cash-sessions/current'),
+      API.get('/api/settings'),
     ]);
+  if (settings) cacheSettings(settings);
 
   const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
   adminCashLastSignature = cashOpenOrdersSignature(openOrders, cashInfo);
@@ -2034,6 +2318,7 @@ async function renderCash(snapshot = null) {
     </section>
 
     ${cashFilterBar(adminCashFilter, filterCounts, 'setAdminCashFilter')}
+    ${cashDailySummaryPanel(allOrders, cashInfo)}
     ${cashSessionPanel(cashInfo, 'adminCash')}
     ${eventsPanel}
     ${restaurantPanel}
@@ -2055,9 +2340,11 @@ async function refreshAdminCashIfChanged() {
   adminCashAutoRefreshing = true;
 
   try {
-    const [orders, cashInfo] = await Promise.all([
+    const [orders, allOrders, cashInfo, settings] = await Promise.all([
       API.get('/api/orders?view=open'),
+      API.get('/api/orders'),
       API.get('/api/cash-sessions/current'),
+      API.get('/api/settings'),
     ]);
     const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
     const nextSignature = cashOpenOrdersSignature(openOrders, cashInfo);
@@ -2065,7 +2352,7 @@ async function refreshAdminCashIfChanged() {
     if (nextSignature !== adminCashLastSignature) {
       const newOrderCount = countNewCashOrders(openOrders, adminCashKnownOrderIds);
       if (newOrderCount) notifyCashNewOrders(newOrderCount);
-      await renderCash({ orders, cashInfo });
+      await renderCash({ orders, allOrders, cashInfo, settings });
     }
   } catch (err) {
     console.warn('Nao foi possivel atualizar o caixa do admin automaticamente.', err);

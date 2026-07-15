@@ -69,7 +69,35 @@ function defaultDb() {
     quotes: [],
     orders: [],
     cashSessions: [],
+    customers: [],
+    settings: defaultSettings(),
     activityLog: []
+  };
+}
+
+function defaultSettings() {
+  return {
+    restaurantName: 'Quintal do Zé',
+    tableCount: 30,
+    onboardingCompleted: false,
+    trainingMode: false,
+    receiptMessage: 'Obrigado pela preferência. Volte sempre!'
+  };
+}
+
+function normalizeSettings(settings) {
+  const defaults = defaultSettings();
+  const safeSettings = settings && typeof settings === 'object' ? settings : {};
+  const tableCount = Math.max(Math.min(Number(safeSettings.tableCount || defaults.tableCount), 200), 1);
+
+  return {
+    ...defaults,
+    ...safeSettings,
+    restaurantName: String(safeSettings.restaurantName || defaults.restaurantName).trim() || defaults.restaurantName,
+    tableCount,
+    onboardingCompleted: safeSettings.onboardingCompleted === true,
+    trainingMode: safeSettings.trainingMode === true,
+    receiptMessage: String(safeSettings.receiptMessage || defaults.receiptMessage).trim() || defaults.receiptMessage
   };
 }
 
@@ -79,11 +107,18 @@ function productUsage(value) {
 
 function normalizeProduct(product) {
   const safeProduct = product && typeof product === 'object' ? product : {};
+  const stockEnabled = safeProduct.stockEnabled === true;
+  const stockQty = Math.max(Number(safeProduct.stockQty || 0), 0);
+  const soldOut = stockEnabled && stockQty <= 0 ? true : safeProduct.soldOut === true;
+
   return {
     ...safeProduct,
     active: safeProduct.active !== false,
-    soldOut: safeProduct.soldOut === true,
-    usage: productUsage(safeProduct.usage)
+    soldOut,
+    usage: productUsage(safeProduct.usage),
+    stockEnabled,
+    stockQty,
+    lowStockAt: Math.max(Number(safeProduct.lowStockAt ?? 5), 0)
   };
 }
 
@@ -97,6 +132,24 @@ function normalizeUser(user) {
   return {
     ...safeUser,
     active: safeUser.active !== false
+  };
+}
+
+function normalizeCustomer(customer) {
+  const safeCustomer = customer && typeof customer === 'object' ? customer : {};
+  return {
+    ...safeCustomer,
+    id: safeCustomer.id,
+    name: String(safeCustomer.name || '').trim(),
+    phone: String(safeCustomer.phone || '').trim(),
+    quotesCount: Math.max(Number(safeCustomer.quotesCount || 0), 0),
+    totalQuoted: Math.max(Number(safeCustomer.totalQuoted || 0), 0),
+    lastQuoteId: safeCustomer.lastQuoteId || null,
+    lastQuoteAt: safeCustomer.lastQuoteAt || null,
+    lastEventType: safeCustomer.lastEventType || '',
+    eventTypes: Array.isArray(safeCustomer.eventTypes) ? safeCustomer.eventTypes : [],
+    createdAt: safeCustomer.createdAt || new Date().toISOString(),
+    updatedAt: safeCustomer.updatedAt || new Date().toISOString()
   };
 }
 
@@ -142,6 +195,8 @@ function sanitizedBackup(db) {
       quotes: db.quotes || [],
       orders: db.orders || [],
       cashSessions: db.cashSessions || [],
+      customers: db.customers || [],
+      settings: normalizeSettings(db.settings),
       activityLog: db.activityLog || []
     }
   };
@@ -300,6 +355,7 @@ function normalizeDb(dbCandidate) {
   const defaults = defaultDb();
   const db = dbCandidate && typeof dbCandidate === 'object' ? dbCandidate : {};
 
+  db.settings = normalizeSettings(db.settings || defaults.settings);
   if (!Array.isArray(db.users)) db.users = defaults.users;
   db.users = db.users.map(normalizeUser);
   if (!Array.isArray(db.products)) db.products = [];
@@ -308,6 +364,8 @@ function normalizeDb(dbCandidate) {
   if (!Array.isArray(db.orders)) db.orders = [];
   db.orders = db.orders.map(normalizeOrder);
   if (!Array.isArray(db.cashSessions)) db.cashSessions = [];
+  if (!Array.isArray(db.customers)) db.customers = [];
+  db.customers = db.customers.map(normalizeCustomer).filter((customer) => customer.name);
   if (!Array.isArray(db.activityLog)) db.activityLog = [];
 
   return db;
@@ -431,7 +489,107 @@ function cashSalesForDate(db, dateValue) {
 }
 
 function publicUser(user) {
-  return { id: user.id, name: user.name, email: user.email, role: user.role, active: user.active !== false };
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    active: user.active !== false,
+    passwordUpdatedAt: user.passwordUpdatedAt || null
+  };
+}
+
+function phoneDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function customerIdentity(name, phone) {
+  const digits = phoneDigits(phone);
+  if (digits) return `phone:${digits}`;
+
+  return `name:${String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()}`;
+}
+
+function upsertCustomerFromQuote(db, quote) {
+  if (!quote?.clientName) return null;
+
+  db.customers = Array.isArray(db.customers) ? db.customers.map(normalizeCustomer) : [];
+
+  const identity = customerIdentity(quote.clientName, quote.phone);
+  const now = new Date().toISOString();
+  let customer = db.customers.find((item) => item.identity === identity);
+
+  if (!customer && phoneDigits(quote.phone)) {
+    const digits = phoneDigits(quote.phone);
+    customer = db.customers.find((item) => phoneDigits(item.phone) === digits);
+  }
+
+  if (!customer) {
+    customer = {
+      id: nextId(db.customers),
+      identity,
+      name: quote.clientName,
+      phone: quote.phone || '',
+      quotesCount: 0,
+      totalQuoted: 0,
+      lastQuoteId: null,
+      lastQuoteAt: null,
+      lastEventType: '',
+      eventTypes: [],
+      createdAt: now,
+      updatedAt: now
+    };
+    db.customers.push(customer);
+  }
+
+  const quoteIds = new Set(Array.isArray(customer.quoteIds) ? customer.quoteIds.map(String) : []);
+  quoteIds.add(String(quote.id));
+
+  customer.identity = identity;
+  customer.name = quote.clientName || customer.name;
+  customer.phone = quote.phone || customer.phone || '';
+  customer.quoteIds = Array.from(quoteIds);
+  customer.quotesCount = customer.quoteIds.length;
+  const relatedQuotes = (db.quotes || []).filter((item) => customer.quoteIds.includes(String(item.id)));
+  customer.totalQuoted = relatedQuotes.reduce((sum, item) => sum + Number(item.total || 0), 0);
+  customer.lastQuoteId = quote.id;
+  customer.lastQuoteAt = quote.updatedAt || quote.createdAt || now;
+  customer.lastEventType = quote.eventType || customer.lastEventType || '';
+  customer.eventTypes = Array.from(new Set([...(customer.eventTypes || []), quote.eventType].filter(Boolean))).slice(-8);
+  customer.training = relatedQuotes.length > 0 && relatedQuotes.every((item) => item.training === true);
+  customer.updatedAt = now;
+
+  return normalizeCustomer(customer);
+}
+
+function applyStockForOrder(db, items) {
+  const requested = new Map();
+
+  items.forEach((item) => {
+    if (item.id === null || item.id === undefined) return;
+    const key = String(item.id);
+    requested.set(key, (requested.get(key) || 0) + Number(item.qty || 1));
+  });
+
+  const stockProducts = [...requested.entries()]
+    .map(([id, qty]) => ({ product: db.products.find((item) => String(item.id) === id), qty }))
+    .filter((entry) => entry.product && entry.product.stockEnabled === true);
+
+  const unavailable = stockProducts.find(({ product, qty }) => Number(product.stockQty || 0) < qty);
+  if (unavailable) {
+    return `${unavailable.product.name} tem apenas ${Number(unavailable.product.stockQty || 0)} unidade(s) em estoque.`;
+  }
+
+  stockProducts.forEach(({ product, qty }) => {
+    product.stockQty = Math.max(Number(product.stockQty || 0) - qty, 0);
+    if (product.stockQty <= 0) product.soldOut = true;
+  });
+
+  return '';
 }
 
 function getLocalIps() {
@@ -466,6 +624,64 @@ app.get('/api/backup', asyncHandler(async (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="backup-quintal-do-ze-${date}.json"`);
   res.json(sanitizedBackup(db));
+}));
+
+app.get('/api/settings', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  res.json(normalizeSettings(db.settings));
+}));
+
+app.put('/api/settings', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const previousTrainingMode = db.settings?.trainingMode === true;
+  db.settings = normalizeSettings({
+    ...db.settings,
+    ...req.body
+  });
+
+  if (previousTrainingMode !== db.settings.trainingMode) {
+    logAction(db, 'settings', `Modo treinamento ${db.settings.trainingMode ? 'ativado' : 'desativado'}`, { trainingMode: db.settings.trainingMode });
+  } else {
+    logAction(db, 'settings', 'Configurações do sistema atualizadas', { settings: db.settings });
+  }
+
+  await writeDb(db);
+  res.json(db.settings);
+}));
+
+app.get('/api/customers', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const customers = [...(db.customers || [])]
+    .map(normalizeCustomer)
+    .sort((a, b) => new Date(b.lastQuoteAt || b.updatedAt || 0) - new Date(a.lastQuoteAt || a.updatedAt || 0));
+
+  res.json(customers);
+}));
+
+app.delete('/api/training-data', asyncHandler(async (req, res) => {
+  const db = await readDb();
+  const before = {
+    orders: db.orders.length,
+    quotes: db.quotes.length,
+    customers: db.customers.length,
+    cashSessions: db.cashSessions.length
+  };
+
+  db.orders = db.orders.filter((order) => order.training !== true);
+  db.quotes = db.quotes.filter((quote) => quote.training !== true);
+  db.customers = db.customers.filter((customer) => customer.training !== true);
+  db.cashSessions = db.cashSessions.filter((session) => session.training !== true);
+
+  const removed = {
+    orders: before.orders - db.orders.length,
+    quotes: before.quotes - db.quotes.length,
+    customers: before.customers - db.customers.length,
+    cashSessions: before.cashSessions - db.cashSessions.length
+  };
+
+  logAction(db, 'training', 'Dados de treinamento apagados', removed);
+  await writeDb(db);
+  res.json({ ok: true, removed });
 }));
 
 app.post('/api/login', asyncHandler(async (req, res) => {
@@ -557,9 +773,9 @@ app.get('/api/products', asyncHandler(async (req, res) => {
 
 app.post('/api/products', asyncHandler(async (req, res) => {
   const db = await readDb();
-  if (!req.body.name || !req.body.price) return res.status(400).json({ error: 'Preencha nome e preço.' });
+  if (!req.body.name || req.body.price === undefined || req.body.price === '') return res.status(400).json({ error: 'Preencha nome e preço.' });
 
-  const product = {
+  const product = normalizeProduct({
     id: nextId(db.products),
     name: String(req.body.name).trim(),
     category: String(req.body.category || 'Geral').trim(),
@@ -567,8 +783,11 @@ app.post('/api/products', asyncHandler(async (req, res) => {
     description: String(req.body.description || '').trim(),
     active: req.body.active !== false,
     soldOut: req.body.soldOut === true,
-    usage: productUsage(req.body.usage)
-  };
+    usage: productUsage(req.body.usage),
+    stockEnabled: req.body.stockEnabled === true,
+    stockQty: Number(req.body.stockQty || 0),
+    lowStockAt: Number(req.body.lowStockAt ?? 5)
+  });
 
   db.products.push(product);
   logAction(db, 'product', `Produto cadastrado: ${product.name}`, { productId: product.id });
@@ -583,15 +802,21 @@ app.put('/api/products/:id', asyncHandler(async (req, res) => {
 
   product.name = String(req.body.name || product.name).trim();
   product.category = String(req.body.category || 'Geral').trim();
-  product.price = Number(req.body.price || product.price);
+  product.price = Number(req.body.price ?? product.price);
   product.description = String(req.body.description || '').trim();
   product.active = req.body.active !== false;
   product.soldOut = req.body.soldOut === true;
   if (req.body.usage) product.usage = productUsage(req.body.usage);
+  product.stockEnabled = req.body.stockEnabled === true;
+  product.stockQty = Math.max(Number(req.body.stockQty || 0), 0);
+  product.lowStockAt = Math.max(Number(req.body.lowStockAt ?? product.lowStockAt ?? 5), 0);
 
-  logAction(db, 'product', `Produto atualizado: ${product.name}`, { productId: product.id, soldOut: product.soldOut });
+  const normalizedProduct = normalizeProduct(product);
+  Object.assign(product, normalizedProduct);
+
+  logAction(db, 'product', `Produto atualizado: ${product.name}`, { productId: product.id, soldOut: product.soldOut, stockQty: product.stockQty });
   await writeDb(db);
-  res.json(product);
+  res.json(normalizeProduct(product));
 }));
 
 app.delete('/api/products/:id', asyncHandler(async (req, res) => {
@@ -609,6 +834,9 @@ app.put('/api/products/:id/sold-out', asyncHandler(async (req, res) => {
   if (!product) return res.status(404).json({ error: 'Produto não encontrado.' });
 
   product.soldOut = req.body.soldOut === true;
+  if (product.stockEnabled === true && product.soldOut === false && Number(product.stockQty || 0) <= 0) {
+    product.stockQty = 1;
+  }
   product.active = product.active !== false;
   logAction(db, 'product', `${product.name} marcado como ${product.soldOut ? 'esgotado' : 'disponível'}`, { productId: product.id, soldOut: product.soldOut });
 
@@ -931,8 +1159,9 @@ app.post('/api/quotes', asyncHandler(async (req, res) => {
   const result = quoteBody(req.body);
   if (result.error) return res.status(400).json({ error: result.error });
 
-  const quote = { ...result.quote, id: nextId(db.quotes) };
+  const quote = { ...result.quote, id: nextId(db.quotes), training: db.settings?.trainingMode === true };
   db.quotes.push(quote);
+  upsertCustomerFromQuote(db, quote);
 
   logAction(db, 'quote', `Orçamento criado: ${quote.clientName}`, { quoteId: quote.id, total: quote.total });
   await writeDb(db);
@@ -947,7 +1176,8 @@ app.put('/api/quotes/:id', asyncHandler(async (req, res) => {
   const result = quoteBody(req.body, db.quotes[index]);
   if (result.error) return res.status(400).json({ error: result.error });
 
-  db.quotes[index] = { ...result.quote, id: db.quotes[index].id };
+  db.quotes[index] = { ...result.quote, id: db.quotes[index].id, training: db.quotes[index].training === true };
+  upsertCustomerFromQuote(db, db.quotes[index]);
   logAction(db, 'quote', `Orçamento atualizado: ${db.quotes[index].clientName}`, { quoteId: db.quotes[index].id, total: db.quotes[index].total });
   await writeDb(db);
   res.json(db.quotes[index]);
@@ -1042,7 +1272,8 @@ app.post('/api/quotes/:id/approve', asyncHandler(async (req, res) => {
     deliveredAt: null,
     paidAt: null,
     canceledAt: null,
-    tableMoves: []
+    tableMoves: [],
+    training: quote.training === true || db.settings?.trainingMode === true
   };
 
   db.orders.push(order);
@@ -1096,6 +1327,9 @@ app.post('/api/orders', asyncHandler(async (req, res) => {
 
   if (!table || !waiter || !items.length) return res.status(400).json({ error: 'Informe mesa/comanda, garçom e itens.' });
 
+  const stockError = db.settings?.trainingMode === true ? '' : applyStockForOrder(db, items);
+  if (stockError) return res.status(409).json({ error: stockError });
+
   const total = items.reduce((sum, item) => sum + itemLineTotal(item), 0);
   const order = {
     id: nextId(db.orders),
@@ -1119,7 +1353,8 @@ app.post('/api/orders', asyncHandler(async (req, res) => {
     deliveredAt: null,
     paidAt: null,
     canceledAt: null,
-    tableMoves: []
+    tableMoves: [],
+    training: db.settings?.trainingMode === true
   };
 
   db.orders.push(order);
@@ -1267,7 +1502,8 @@ app.post('/api/cash-sessions/open', asyncHandler(async (req, res) => {
     countedCash: null,
     expectedCash: null,
     difference: null,
-    closeNote: ''
+    closeNote: '',
+    training: db.settings?.trainingMode === true
   };
 
   db.cashSessions.push(session);

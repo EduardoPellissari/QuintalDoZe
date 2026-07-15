@@ -154,8 +154,22 @@ function reportPeriodLabel(startDate, endDate) {
 
 const TOTAL_TABLES = 30;
 
+function systemSettings() {
+  try {
+    return JSON.parse(localStorage.getItem('qz_settings') || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveSystemSettingsCache(settings) {
+  if (!settings || typeof settings !== 'object') return;
+  localStorage.setItem('qz_settings', JSON.stringify(settings));
+}
+
 function configuredRestaurantTables() {
-  return Array.from({ length: TOTAL_TABLES }, (_, index) => String(index + 1));
+  const tableCount = Math.max(Number(systemSettings().tableCount || TOTAL_TABLES), 1);
+  return Array.from({ length: tableCount }, (_, index) => String(index + 1));
 }
 
 const PAYMENT_METHODS = [
@@ -1019,6 +1033,8 @@ window.printEventReceipt = async (orderId, scope) => {
   `;
 
   const bodyHtml = `
+    <p class="pdf-print-note">Recibo de conferência do evento. O pagamento pode ser confirmado no caixa após a validação do responsável.</p>
+
     ${meta.length ? `
       <div class="grid g2 pdf-print-info-grid">
         ${meta.slice(0, 8).map((item) => `<div class="metric"><span>Informação</span><b>${htmlAttr(item)}</b></div>`).join('')}
@@ -1054,7 +1070,7 @@ window.printEventReceipt = async (orderId, scope) => {
     documentTitle: `Evento ${htmlAttr(title)}`,
     heading: 'Evento Quintal do Zé',
     subtitle: `Fechamento de orçamento • ${generatedAt}`,
-    details: 'Recibo simples para evento aprovado.',
+    details: 'Recibo personalizado para evento aprovado.',
     metricsHtml,
     bodyHtml,
     referenceLabel: 'Evento',
@@ -1085,6 +1101,8 @@ window.printTableReceipt = async (encoded, scope) => {
   `;
 
   const bodyHtml = `
+    <p class="pdf-print-note">Pré-conta para conferência da mesa antes do pagamento. Taxa, desconto e divisão são calculados conforme preenchido no caixa.</p>
+
     <h2>Itens consumidos</h2>
     <div class="table-wrap">
       <table class="table">
@@ -1127,6 +1145,50 @@ window.printTableReceipt = async (encoded, scope) => {
     blockedMessage: 'Permita pop-ups para imprimir a pré-conta.',
   });
 };
+
+function cashDailySummaryPanel(orders = [], cashInfo = {}) {
+  const today = todayDateValue();
+  const current = cashInfo?.current || null;
+  const openOrders = orders.filter((order) => !order.paid && order.status !== 'cancelado');
+  const restaurantOpen = openOrders.filter((order) => !isEventOrder(order));
+  const eventOpen = openOrders.filter(isEventOrder);
+  const paidToday = orders.filter((order) => order.paid && localDateValue(order.paidAt || order.createdAt) === today);
+  const salesTotal = paidToday.reduce((sum, order) => sum + orderFinalTotal(order), 0);
+  const cashSales = paidToday
+    .filter((order) => order.paymentMethod === 'dinheiro')
+    .reduce((sum, order) => sum + orderFinalTotal(order), 0);
+  const entries = current?.entries || [];
+  const supplies = entries.filter((entry) => entry.type === 'suprimento').reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const withdrawals = entries.filter((entry) => entry.type === 'sangria').reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const expectedCash = current ? Number((Number(current.openingAmount || 0) + supplies - withdrawals + cashSales).toFixed(2)) : 0;
+  const openTotal = openOrders.reduce((sum, order) => sum + orderSubtotal(order), 0);
+
+  return `
+    <section class="panel daily-close-panel">
+      <div class="admin-form-head compact-head">
+        <div>
+          <h3>Fechamento do dia</h3>
+          <p>Resumo rápido para conferir antes de fechar o caixa.</p>
+        </div>
+        <span class="badge ${current ? 'ok' : 'warn'}">${current ? 'Caixa aberto' : 'Caixa fechado'}</span>
+      </div>
+
+      <div class="grid g4">
+        <div class="metric"><span>Vendas pagas hoje</span><b>${money(salesTotal)}</b></div>
+        <div class="metric"><span>Pedidos pagos</span><b>${paidToday.length}</b></div>
+        <div class="metric"><span>Dinheiro esperado</span><b>${current ? money(expectedCash) : '-'}</b></div>
+        <div class="metric"><span>Em aberto</span><b>${money(openTotal)}</b></div>
+      </div>
+
+      <div class="daily-close-notes">
+        <span>${groupOrdersByTable(restaurantOpen).length} mesa(s) aberta(s)</span>
+        <span>${eventOpen.length} evento(s) aberto(s)</span>
+        <span>${money(cashSales)} em dinheiro hoje</span>
+        <span>${money(supplies)} suprimento • ${money(withdrawals)} sangria</span>
+      </div>
+    </section>
+  `;
+}
 
 function cashSessionPanel(info, scope) {
   const current = info?.current;
@@ -1322,7 +1384,7 @@ function openReportPrintDocument({
   metricsHtml = '',
   bodyHtml = '',
   footerLeft = 'Quintal do Zé',
-  footerRight = 'Documento gerado pelo sistema de pedidos.',
+  footerRight = systemSettings().receiptMessage || 'Documento gerado pelo sistema de pedidos.',
   referenceLabel = 'Documento',
   referenceText = documentTitle,
   blockedMessage = 'Permita pop-ups para gerar o PDF.',

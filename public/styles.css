@@ -5015,3 +5015,214 @@ html.mobile-layout .table-wrap {
 html.mobile-layout .table {
   min-width: 620px;
 }
+
+/* ==================================================
+   IMPLANTAÇÃO, ESTOQUE E FECHAMENTO DO DIA
+   ================================================== */
+.setup-page {
+  display:grid;
+  gap:18px;
+}
+
+.training-banner {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:14px 16px;
+  border-radius:18px;
+  color:#151515;
+  background:linear-gradient(135deg,var(--gold),var(--gold2));
+  box-shadow:0 16px 34px rgba(246,196,0,.18);
+}
+
+.training-banner b {
+  font-size:16px;
+}
+
+.training-banner span {
+  font-weight:850;
+}
+
+.setup-hero {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  background:
+    radial-gradient(circle at 0 0,rgba(246,196,0,.18),transparent 34%),
+    linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.035));
+}
+
+.setup-hero span {
+  display:inline-flex;
+  width:fit-content;
+  margin-bottom:8px;
+  padding:6px 10px;
+  border-radius:999px;
+  color:#151515;
+  background:linear-gradient(135deg,var(--gold),var(--gold2));
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+
+.setup-hero h3 {
+  margin:0 0 6px;
+  font-size:30px;
+}
+
+.setup-hero p {
+  margin:0;
+  color:var(--muted);
+  font-weight:800;
+}
+
+.setup-grid {
+  display:grid;
+  grid-template-columns:1.1fr .9fr;
+  gap:18px;
+}
+
+.setup-check-list,
+.customer-history-grid {
+  display:grid;
+  gap:10px;
+}
+
+.setup-check-item {
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:4px 12px;
+  align-items:center;
+  padding:12px;
+  border-radius:16px;
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.08);
+}
+
+.setup-check-item span {
+  grid-row:1 / span 2;
+  min-width:72px;
+  text-align:center;
+  padding:6px 8px;
+  border-radius:999px;
+  color:#ffe0e0;
+  background:rgba(239,68,68,.16);
+  border:1px solid rgba(239,68,68,.26);
+  font-size:11px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+
+.setup-check-item.done span {
+  color:#dfffe9;
+  background:rgba(50,199,106,.14);
+  border-color:rgba(50,199,106,.28);
+}
+
+.setup-check-item b {
+  color:var(--txt);
+}
+
+.setup-check-item small,
+.customer-history-card small {
+  color:var(--muted);
+  font-weight:800;
+}
+
+.setup-form .setup-toggle {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:12px;
+  border-radius:16px;
+  color:var(--txt);
+  background:rgba(246,196,0,.08);
+  border:1px solid rgba(246,196,0,.16);
+}
+
+.setup-toggle input {
+  width:18px;
+  height:18px;
+  margin:0;
+  accent-color:var(--gold);
+}
+
+.setup-actions .setup-action-card {
+  width:100%;
+  text-align:left;
+  color:var(--txt);
+}
+
+.customer-history-panel {
+  margin-bottom:18px;
+}
+
+.customer-history-grid {
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+}
+
+.customer-history-card {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:8px;
+  width:100%;
+  text-align:left;
+  color:var(--txt);
+  background:rgba(255,255,255,.045);
+  border:1px solid rgba(255,255,255,.09);
+}
+
+.customer-history-card:hover {
+  border-color:rgba(246,196,0,.42);
+  background:rgba(246,196,0,.10);
+}
+
+.customer-history-card em {
+  color:var(--gold);
+  font-size:12px;
+  font-style:normal;
+  font-weight:950;
+}
+
+.daily-close-panel {
+  margin-bottom:18px;
+  border-color:rgba(246,196,0,.16);
+}
+
+.daily-close-notes {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:14px;
+}
+
+.daily-close-notes span {
+  padding:8px 10px;
+  border-radius:999px;
+  color:var(--txt);
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.10);
+  font-size:12px;
+  font-weight:900;
+}
+
+@media (max-width: 980px) {
+  .setup-grid,
+  .setup-hero {
+    grid-template-columns:1fr;
+  }
+
+  .setup-hero,
+  .training-banner {
+    flex-direction:column;
+    align-items:flex-start;
+  }
+}
+
+html.mobile-layout .setup-grid,
+html.mobile-layout .customer-history-grid {
+  grid-template-columns:1fr;
+}

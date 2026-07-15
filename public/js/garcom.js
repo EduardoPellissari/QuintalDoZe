@@ -24,11 +24,13 @@ let openOrders = [];
 let customizingItemId = null;
 
 async function init() {
-  const [orderProducts, orders] = await Promise.all([
+  const [settings, orderProducts, orders] = await Promise.all([
+    API.get('/api/settings'),
     API.get('/api/products?usage=orders'),
     API.get('/api/orders?view=open'),
   ]);
 
+  saveSystemSettingsCache(settings);
   products = orderProducts.filter((product) => product.active !== false && product.soldOut !== true);
   openOrders = orders.filter(isOpenOrder);
   render();
@@ -70,6 +72,10 @@ function add(id) {
   if (!product) return;
 
   const line = cart.find((item) => productId(item.id) === productId(id));
+  const currentQty = Number(line?.qty || 0);
+  if (product.stockEnabled === true && currentQty >= Number(product.stockQty || 0)) {
+    return toast(`Estoque máximo para ${product.name}: ${Number(product.stockQty || 0)} unidade(s).`);
+  }
 
   if (line) line.qty++;
   else cart.push({ ...product, qty: 1, extraPrice: 0, note: '' });
@@ -500,7 +506,7 @@ function renderMenu() {
       <button class="item menu-product-card pdv-product-card" type="button" onclick="add('${htmlAttr(productId(product.id))}')">
         <span class="pdv-product-info">
           <b>${htmlAttr(product.name)}</b>
-          <small class="muted">${htmlAttr(product.category || txt('garcom.geral', 'Geral'))}</small>
+          <small class="muted">${htmlAttr(product.category || txt('garcom.geral', 'Geral'))}${product.stockEnabled ? ` • Estoque: ${Number(product.stockQty || 0)}` : ''}</small>
         </span>
 
         <span class="pdv-product-bottom">
@@ -580,8 +586,13 @@ async function send(event) {
       toast(txt('garcom.pedidoEnviado', 'Pedido enviado para cozinha.'));
       cart = [];
       document.getElementById('orderForm').reset();
-      await refreshOpenOrders();
+      const [orderProducts] = await Promise.all([
+        API.get('/api/products?usage=orders'),
+        refreshOpenOrders(),
+      ]);
+      products = orderProducts.filter((product) => product.active !== false && product.soldOut !== true);
       renderTableSuggestions();
+      renderMenu();
       renderCart();
     } catch (err) {
       toast(err.message);
