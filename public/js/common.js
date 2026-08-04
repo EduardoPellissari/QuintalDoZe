@@ -1882,8 +1882,66 @@ function applyMobileLayoutClass() {
   document.documentElement.classList.toggle('mobile-layout', shouldUseMobileLayout);
 }
 
+let deferredPwaInstallPrompt = null;
+
+function isRunningAsPwa() {
+  return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function applyPwaStandaloneClass() {
+  document.documentElement.classList.toggle('pwa-standalone', isRunningAsPwa());
+}
+
+function registerPwaServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').catch((err) => {
+      console.warn('Nao foi possivel registrar o aplicativo instalavel.', err);
+    });
+  });
+}
+
+function setupPwaInstallPrompt() {
+  const box = document.getElementById('installAppBox');
+  const button = document.getElementById('installAppButton');
+  const text = document.getElementById('installAppText');
+
+  if (!box || isRunningAsPwa()) return;
+
+  const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent || '');
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredPwaInstallPrompt = event;
+    box.classList.remove('hidden');
+    if (text) text.textContent = 'Toque em instalar para deixar o sistema na tela inicial.';
+    if (button) button.hidden = false;
+  });
+
+  if (isIos && text && button) {
+    box.classList.remove('hidden');
+    text.textContent = 'No iPhone, toque em compartilhar e escolha "Adicionar à Tela de Início".';
+    button.hidden = true;
+  }
+
+  button?.addEventListener('click', async () => {
+    if (!deferredPwaInstallPrompt) return;
+
+    deferredPwaInstallPrompt.prompt();
+    await deferredPwaInstallPrompt.userChoice.catch(() => null);
+    deferredPwaInstallPrompt = null;
+    box.classList.add('hidden');
+  });
+}
+
+registerPwaServiceWorker();
+
 document.addEventListener('DOMContentLoaded', () => {
+  applyPwaStandaloneClass();
   applyMobileLayoutClass();
+  setupPwaInstallPrompt();
   window.addEventListener('resize', applyMobileLayoutClass, { passive: true });
   window.addEventListener('orientationchange', applyMobileLayoutClass);
 

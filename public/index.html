@@ -2,10 +2,15 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Quintal do Zé | Login</title>
-  <link rel="icon" href="/assets/logo.jpg" type="image/jpeg">
+  <link rel="icon" href="/assets/icons/icon-192.png" type="image/png">
   <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#080808">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Quintal do Zé">
+  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="login-modern-body">
@@ -46,6 +51,14 @@
           <button id="loginButton" class="login-modern-button" type="submit">Entrar</button>
           <p id="loginMsg" class="error"></p>
         </form>
+
+        <div id="installAppBox" class="login-install-box hidden">
+          <div>
+            <b>Instalar como aplicativo</b>
+            <span id="installAppText">Adicione o sistema na tela inicial para abrir como app.</span>
+          </div>
+          <button id="installAppButton" class="soft" type="button">Instalar app</button>
+        </div>
 
         <div class="login-modern-help">
           <b id="loginAccessTitle">O quintal mais brasileiro que existe!</b>

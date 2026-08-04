@@ -29,12 +29,16 @@ html,
 body {
   width:100%;
   max-width:100%;
+  min-height:100%;
   overflow-x:hidden;
+  overscroll-behavior-x:none;
   -webkit-text-size-adjust:100%;
   text-size-adjust:100%
 }
 
 body {
+  min-height:100vh;
+  min-height:100dvh;
   margin:0;
   font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif;
   background:radial-gradient(circle at top left,#302707,#101010 34%,#070707);
@@ -55,6 +59,7 @@ button {
   padding:12px 16px;
   font-weight:850;
   line-height:1.1;
+  touch-action:manipulation;
   transition:background .18s ease,border-color .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease
 }
 
@@ -413,6 +418,43 @@ body.embedded-app #content {
 
 .login-modern-help b {
   color:var(--txt)
+}
+
+.login-install-box {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:16px;
+  border-radius:22px;
+  background:linear-gradient(135deg,rgba(246,196,0,.14),rgba(255,255,255,.045));
+  border:1px solid rgba(246,196,0,.22);
+  box-shadow:0 18px 40px rgba(246,196,0,.10)
+}
+
+.login-install-box b,
+.login-install-box span {
+  display:block
+}
+
+.login-install-box b {
+  color:var(--gold);
+  font-size:15px
+}
+
+.login-install-box span {
+  margin-top:4px;
+  color:var(--muted);
+  font-size:13px;
+  font-weight:800;
+  line-height:1.35
+}
+
+.login-install-box button {
+  flex:0 0 auto;
+  min-height:44px;
+  margin:0;
+  border-color:rgba(246,196,0,.24)
 }
 
 
@@ -2059,6 +2101,15 @@ textarea {
 
   .login-modern-button {
     height:50px
+  }
+
+  .login-install-box {
+    align-items:stretch;
+    flex-direction:column
+  }
+
+  .login-install-box button {
+    width:100%
   }
 
   main {
@@ -5014,6 +5065,42 @@ html.mobile-layout .table-wrap {
 
 html.mobile-layout .table {
   min-width: 620px;
+}
+
+html.pwa-standalone,
+html.pwa-standalone body,
+html.mobile-layout,
+html.mobile-layout body {
+  min-height:100dvh;
+  background:#080808;
+  overscroll-behavior:none;
+}
+
+html.mobile-layout input,
+html.mobile-layout textarea,
+html.mobile-layout select {
+  font-size:16px;
+}
+
+html.mobile-layout .login-modern-screen,
+html.mobile-layout .app-shell {
+  min-height:100dvh;
+}
+
+html.mobile-layout .sidebar {
+  padding-top:max(14px, env(safe-area-inset-top));
+  padding-left:max(14px, env(safe-area-inset-left));
+  padding-right:max(14px, env(safe-area-inset-right));
+}
+
+html.mobile-layout main {
+  padding-left:max(12px, env(safe-area-inset-left));
+  padding-right:max(12px, env(safe-area-inset-right));
+  padding-bottom:max(12px, env(safe-area-inset-bottom));
+}
+
+html.pwa-standalone body.app-layout {
+  overflow-x:hidden;
 }
 
 /* ==================================================
