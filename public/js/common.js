@@ -2199,12 +2199,56 @@ function setupPwaInstallPrompt() {
   });
 }
 
+function enhanceMobileTable(table) {
+  if (!table) return;
+
+  const headers = [...table.querySelectorAll('thead th')]
+    .map((header) => header.textContent.trim())
+    .filter(Boolean);
+
+  if (!headers.length) return;
+
+  table.classList.add('mobile-card-table');
+  table.querySelectorAll('tbody tr').forEach((row) => {
+    [...row.children].forEach((cell, index) => {
+      if (cell.tagName !== 'TD') return;
+      cell.dataset.label = Number(cell.colSpan || 1) > 1 ? '' : headers[index] || '';
+    });
+  });
+
+  table.dataset.mobileEnhanced = '1';
+}
+
+function enhanceMobileTables(root = document) {
+  root.querySelectorAll?.('table.table').forEach(enhanceMobileTable);
+}
+
+function setupMobileTableCards() {
+  enhanceMobileTables();
+
+  let pending = false;
+  const schedule = () => {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      enhanceMobileTables();
+    });
+  };
+
+  new MutationObserver(schedule).observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+}
+
 registerPwaServiceWorker();
 
 document.addEventListener('DOMContentLoaded', () => {
   applyPwaStandaloneClass();
   applyMobileLayoutClass();
   setupPwaInstallPrompt();
+  setupMobileTableCards();
   window.addEventListener('resize', applyMobileLayoutClass, { passive: true });
   window.addEventListener('orientationchange', applyMobileLayoutClass);
 

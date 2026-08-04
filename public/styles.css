@@ -6891,3 +6891,211 @@ html.mobile-layout .column-header h3,
 html.mobile-layout .column-header p {
   line-height:1.28;
 }
+
+/* ==================================================
+   MOBILE - alinhamento final para leitura operacional
+   ================================================== */
+html.mobile-layout .sidebar nav:not(.nav-collapsible) {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  overflow:visible;
+  padding:0;
+}
+
+html.mobile-layout .sidebar nav:not(.nav-collapsible) button,
+html.mobile-layout .sidebar nav:not(.nav-collapsible) a {
+  width:100%;
+  min-width:0;
+  justify-content:center;
+  gap:7px;
+  padding:11px 8px;
+  text-align:center;
+  white-space:normal;
+}
+
+html.mobile-layout .sidebar nav:not(.nav-collapsible) .nav-count-badge {
+  margin-left:0;
+}
+
+html.mobile-layout .category-menu {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  overflow:visible;
+  padding-bottom:0;
+}
+
+html.mobile-layout .category-pill {
+  width:100%;
+  min-width:0;
+  flex:none;
+  text-align:center;
+  white-space:normal;
+}
+
+html.mobile-layout .dashboard-cards .dash-card:not(.quote-summary-card) {
+  display:grid;
+  grid-template-columns:minmax(44px,auto) minmax(0,1fr);
+  align-items:center;
+  min-height:72px;
+  gap:8px 12px;
+}
+
+html.mobile-layout .dashboard-cards .dash-card:not(.quote-summary-card) b {
+  min-width:44px;
+  text-align:left;
+}
+
+html.mobile-layout .dashboard-cards .dash-card:not(.quote-summary-card) span {
+  align-self:center;
+}
+
+html.mobile-layout .quote-summary-cards {
+  grid-template-columns:1fr;
+}
+
+html.mobile-layout .quote-summary-card {
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  min-height:auto;
+  gap:7px 12px;
+  padding:15px;
+}
+
+html.mobile-layout .quote-summary-card span {
+  grid-column:1 / -1;
+  line-height:1.22;
+  white-space:normal;
+  word-break:normal;
+}
+
+html.mobile-layout .quote-summary-card b {
+  grid-column:1;
+  min-width:0;
+  font-size:clamp(28px, 9vw, 40px);
+  line-height:1;
+}
+
+html.mobile-layout .quote-summary-card small {
+  grid-column:2;
+  max-width:132px;
+  align-self:end;
+  color:var(--muted);
+  line-height:1.3;
+  text-align:right;
+}
+
+html.mobile-layout .table-wrap {
+  overflow:visible;
+}
+
+html.mobile-layout .mobile-card-table {
+  width:100%;
+  min-width:0;
+  display:block;
+  border-collapse:separate;
+}
+
+html.mobile-layout .mobile-card-table thead {
+  display:none;
+}
+
+html.mobile-layout .mobile-card-table tbody {
+  display:grid;
+  gap:12px;
+}
+
+html.mobile-layout .mobile-card-table tr {
+  display:grid;
+  gap:0;
+  padding:13px;
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:16px;
+  background:rgba(255,255,255,.035);
+}
+
+html.mobile-layout .mobile-card-table th,
+html.mobile-layout .mobile-card-table td {
+  border:0;
+}
+
+html.mobile-layout .mobile-card-table td {
+  width:100%;
+  min-width:0;
+  display:grid;
+  grid-template-columns:minmax(88px,.42fr) minmax(0,1fr);
+  align-items:start;
+  gap:10px;
+  padding:10px 0;
+  border-bottom:1px solid rgba(255,255,255,.08);
+  color:var(--txt);
+  font-size:14px;
+  line-height:1.38;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+
+html.mobile-layout .mobile-card-table td:last-child {
+  border-bottom:0;
+  padding-bottom:0;
+}
+
+html.mobile-layout .mobile-card-table td:first-child {
+  padding-top:0;
+}
+
+html.mobile-layout .mobile-card-table td::before {
+  content:attr(data-label);
+  color:var(--gold);
+  font-size:11px;
+  font-weight:950;
+  letter-spacing:.04em;
+  line-height:1.25;
+  text-transform:uppercase;
+}
+
+html.mobile-layout .mobile-card-table td[colspan],
+html.mobile-layout .mobile-card-table td[data-label=""] {
+  display:block;
+  color:var(--muted);
+}
+
+html.mobile-layout .mobile-card-table td[colspan]::before,
+html.mobile-layout .mobile-card-table td[data-label=""]::before {
+  display:none;
+}
+
+html.mobile-layout .mobile-card-table .badge,
+html.mobile-layout .mobile-card-table .muted {
+  width:fit-content;
+  max-width:100%;
+  justify-self:start;
+  text-align:left;
+}
+
+html.mobile-layout .mobile-card-table .actions {
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
+  gap:8px;
+}
+
+html.mobile-layout .mobile-card-table .actions button {
+  width:100%;
+  min-height:42px;
+  justify-content:center;
+  margin:0;
+}
+
+html.mobile-layout .mobile-card-table tr.inactive-row {
+  opacity:.72;
+  border-color:rgba(239,68,68,.28);
+  background:rgba(239,68,68,.07);
+}
+
+html.mobile-layout .admin-list-box .table-wrap,
+html.mobile-layout .report-page .table-wrap {
+  margin-top:12px;
+}
