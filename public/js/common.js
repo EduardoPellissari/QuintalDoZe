@@ -1766,11 +1766,20 @@ function openReportPrintDocument({
           }
 
           .pdf-print-shell .table-wrap {
-            overflow-x: auto;
+            overflow: hidden;
           }
 
           .pdf-print-shell .table {
-            min-width: 560px;
+            min-width: 0;
+            table-layout: fixed;
+          }
+
+          .pdf-print-shell .table th,
+          .pdf-print-shell .table td {
+            padding: 9px 7px;
+            font-size: 10px;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
           }
 
           .pdf-print-total {

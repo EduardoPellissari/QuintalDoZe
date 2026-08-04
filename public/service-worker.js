@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'qz-pwa-v2';
+const CACHE_VERSION = 'qz-pwa-v3';
 const APP_SHELL = [
   '/',
   '/?app=pwa',
