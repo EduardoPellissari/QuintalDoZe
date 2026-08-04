@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>PDF | Quintal do Zé</title>
+  <link rel="icon" href="/assets/icons/icon-192.png" type="image/png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#080808">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Quintal do Zé">
+  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="pdf-viewer-body">
+  <header class="pdf-viewer-toolbar">
+    <button id="pdfBackButton" class="soft" type="button">Voltar ao sistema</button>
+    <div>
+      <b id="pdfViewerTitle">PDF Quintal do Zé</b>
+      <span>Visualize, baixe ou compartilhe o documento.</span>
+    </div>
+    <a id="pdfDownloadButton" class="pdf-download-button" href="#" download>Baixar PDF</a>
+  </header>
+
+  <main class="pdf-viewer-shell">
+    <iframe id="pdfFrame" title="Visualizador de PDF"></iframe>
+    <section id="pdfFallback" class="pdf-fallback hidden">
+      <img src="/assets/icons/icon-192.png" alt="Logo Quintal do Zé">
+      <h1>PDF pronto para baixar</h1>
+      <p>Se o celular não mostrar a prévia aqui, toque no botão abaixo para abrir ou baixar o documento.</p>
+      <a id="pdfFallbackOpen" class="pdf-download-button" href="#">Abrir PDF</a>
+    </section>
+  </main>
+
+  <script src="/js/textos.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/pdf-viewer.js"></script>
+</body>
+</html>

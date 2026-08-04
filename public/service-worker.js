@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'qz-pwa-v1';
+const CACHE_VERSION = 'qz-pwa-v2';
 const APP_SHELL = [
   '/',
   '/?app=pwa',
@@ -7,6 +7,7 @@ const APP_SHELL = [
   '/garcom.html',
   '/cozinha.html',
   '/caixa.html',
+  '/pdf-viewer.html',
   '/styles.css',
   '/manifest.webmanifest',
   '/offline.html',
@@ -17,6 +18,7 @@ const APP_SHELL = [
   '/js/garcom.js',
   '/js/cozinha.js',
   '/js/caixa.js',
+  '/js/pdf-viewer.js',
   '/assets/logo.jpg',
   '/assets/background.jpg',
   '/assets/sidebar-bg.jpg',

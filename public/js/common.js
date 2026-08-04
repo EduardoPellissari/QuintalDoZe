@@ -1400,7 +1400,7 @@ function openReportPrintDocument({
     <html lang="pt-BR">
     <head>
       <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
       <base href="${window.location.origin}/">
       <title>${documentTitle}</title>
       <link rel="stylesheet" href="/styles.css">
@@ -1416,6 +1416,40 @@ function openReportPrintDocument({
           font-family: Inter, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+        }
+
+        .pdf-print-toolbar {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          display: flex;
+          justify-content: center;
+          gap: 10px;
+          padding: max(12px, env(safe-area-inset-top)) 14px 12px;
+          background: rgba(23,21,17,.92);
+          border-bottom: 1px solid rgba(246,196,0,.22);
+          backdrop-filter: blur(14px);
+        }
+
+        .pdf-print-toolbar button {
+          min-height: 44px;
+          border: 0;
+          border-radius: 999px;
+          padding: 10px 16px;
+          font: inherit;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .pdf-print-toolbar .back-button {
+          color: #fff7d7;
+          background: rgba(255,255,255,.10);
+          border: 1px solid rgba(255,255,255,.16);
+        }
+
+        .pdf-print-toolbar .print-button {
+          color: #171511;
+          background: linear-gradient(135deg, #f6c400, #ffdf57);
         }
 
         .pdf-print-shell {
@@ -1465,11 +1499,13 @@ function openReportPrintDocument({
         }
 
         .pdf-print-shell .report-head h1 {
+          max-width: 100%;
           margin: 8px 0 8px;
           color: #fff4c2;
           font-size: 29px;
           line-height: 1;
           letter-spacing: -.04em;
+          overflow-wrap: break-word;
         }
 
         .pdf-print-kicker {
@@ -1514,6 +1550,7 @@ function openReportPrintDocument({
           color: #f6c400;
           font-size: 15px;
           line-height: 1.15;
+          overflow-wrap: break-word;
         }
 
         .pdf-print-shell .grid {
@@ -1642,7 +1679,120 @@ function openReportPrintDocument({
           font-size: 12px;
         }
 
+        @media screen and (max-width: 680px) {
+          body {
+            background: #fff8e6;
+          }
+
+          .pdf-print-toolbar {
+            justify-content: stretch;
+            padding-left: max(10px, env(safe-area-inset-left));
+            padding-right: max(10px, env(safe-area-inset-right));
+          }
+
+          .pdf-print-toolbar button {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 12px;
+            font-size: 13px;
+          }
+
+          .pdf-print-shell {
+            padding: 14px 10px 22px;
+          }
+
+          .pdf-print-shell .report-page {
+            max-width: 100%;
+            padding: 16px;
+            border-radius: 24px;
+          }
+
+          .pdf-print-shell .report-head {
+            grid-template-columns: 76px minmax(0, 1fr);
+            gap: 14px;
+            padding: 14px;
+            border-radius: 22px;
+          }
+
+          .pdf-print-shell .report-head img {
+            width: 76px;
+            height: 76px;
+            border-radius: 20px;
+          }
+
+          .pdf-print-shell .report-head h1 {
+            margin: 7px 0 6px;
+            font-size: clamp(26px, 8vw, 34px);
+            line-height: .98;
+          }
+
+          .pdf-print-kicker {
+            max-width: 100%;
+            font-size: 10px;
+            line-height: 1.2;
+            white-space: normal;
+          }
+
+          .pdf-print-reference {
+            grid-column: 1 / -1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 12px;
+            text-align: left;
+          }
+
+          .pdf-print-reference b {
+            margin-top: 0;
+            text-align: right;
+          }
+
+          .pdf-print-shell .grid.g4,
+          .pdf-print-shell .grid.g2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+
+          .pdf-print-shell .metric {
+            min-height: 82px;
+            padding: 12px;
+          }
+
+          .pdf-print-shell .metric b,
+          .pdf-print-shell .price {
+            font-size: 17px;
+            line-height: 1.15;
+          }
+
+          .pdf-print-shell .table-wrap {
+            overflow-x: auto;
+          }
+
+          .pdf-print-shell .table {
+            min-width: 560px;
+          }
+
+          .pdf-print-total {
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px;
+          }
+
+          .pdf-print-total b {
+            font-size: 24px;
+          }
+
+          .pdf-print-footer {
+            flex-direction: column;
+          }
+        }
+
         @media print {
+          .pdf-print-toolbar {
+            display: none !important;
+          }
+
           .pdf-print-shell {
             min-height: auto;
             padding: 0;
@@ -1660,6 +1810,10 @@ function openReportPrintDocument({
       </style>
     </head>
     <body>
+      <div class="pdf-print-toolbar">
+        <button class="back-button" type="button" onclick="returnToSystem()">Voltar ao sistema</button>
+        <button class="print-button" type="button" onclick="startPrint(true)">Salvar/Imprimir PDF</button>
+      </div>
       <main class="pdf-print-shell">
         <section class="report-page">
           <div class="report-head">
@@ -1686,8 +1840,20 @@ function openReportPrintDocument({
       </main>
       <script>
         let printed = false;
-        const startPrint = () => {
-          if (printed) return;
+        const returnToSystem = () => {
+          if (window.opener && !window.opener.closed) {
+            window.opener.focus();
+            window.close();
+            return;
+          }
+          if (history.length > 1) {
+            history.back();
+            return;
+          }
+          location.href = '/';
+        };
+        const startPrint = (manual = false) => {
+          if (printed && !manual) return;
           printed = true;
           window.focus();
           setTimeout(() => window.print(), 350);

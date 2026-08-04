@@ -2056,7 +2056,13 @@ function quoteWhatsappMessage(quote) {
 }
 
 function openQuotePdfTab(quote) {
-  const opened = window.open(quotePdfUrl(quote.id), '_blank');
+  const params = new URLSearchParams({
+    src: quotePdfUrl(quote.id),
+    download: quotePdfUrl(quote.id, true),
+    back: '/admin.html',
+    title: `Orçamento ${quote.clientName || 'Quintal do Zé'}`,
+  });
+  const opened = window.open(`/pdf-viewer.html?${params.toString()}`, '_blank');
   if (!opened) toast('Permita pop-ups para abrir o PDF do orçamento.');
   return Boolean(opened);
 }
