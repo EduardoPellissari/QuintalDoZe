@@ -5172,6 +5172,11 @@ html.pwa-standalone body.app-layout {
   white-space:nowrap;
 }
 
+.pdf-download-button[aria-busy="true"] {
+  opacity:.76;
+  pointer-events:none;
+}
+
 .pdf-viewer-shell {
   flex:1;
   min-height:0;

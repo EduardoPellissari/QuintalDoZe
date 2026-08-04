@@ -10,6 +10,8 @@ const fallbackOpen = document.getElementById('pdfFallbackOpen');
 const downloadButton = document.getElementById('pdfDownloadButton');
 const titleElement = document.getElementById('pdfViewerTitle');
 const quotePreview = document.getElementById('quotePreview');
+let currentQuote = null;
+let currentDownloadSrc = '';
 
 function sameOriginPath(value) {
   try {
@@ -75,6 +77,38 @@ function quoteIdFromPdfPath(pathValue) {
 
 function quoteDisplayNumber(quote) {
   return String(quote?.id || '').slice(-6).padStart(4, '0');
+}
+
+function pdfFileSlug(value) {
+  return String(value || 'cliente')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 42)
+    .toLowerCase() || 'cliente';
+}
+
+function suggestedPdfFileName(quote = currentQuote) {
+  if (!quote) return 'orcamento-quintal-do-ze.pdf';
+  return `orcamento-quintal-do-ze-${quote.id}-${pdfFileSlug(quote.clientName)}.pdf`;
+}
+
+function fileNameFromDisposition(disposition) {
+  const utfMatch = String(disposition || '').match(/filename\*=UTF-8''([^;]+)/i);
+  if (utfMatch) {
+    try {
+      return decodeURIComponent(utfMatch[1].replace(/"/g, ''));
+    } catch {
+      return utfMatch[1].replace(/"/g, '');
+    }
+  }
+
+  const quotedMatch = String(disposition || '').match(/filename="([^"]+)"/i);
+  if (quotedMatch) return quotedMatch[1];
+
+  const plainMatch = String(disposition || '').match(/filename=([^;]+)/i);
+  return plainMatch ? plainMatch[1].trim() : '';
 }
 
 function pdfFitPath(pathValue) {
@@ -213,6 +247,8 @@ async function loadQuotePreview(pathValue) {
   const quote = quotes.find((item) => String(item.id) === String(quoteId));
   if (!quote) return false;
 
+  currentQuote = quote;
+  if (downloadButton) downloadButton.setAttribute('download', suggestedPdfFileName(quote));
   quotePreview.innerHTML = quotePreviewHtml(quote);
   quotePreview.classList.remove('hidden');
   if (frame) frame.classList.add('hidden');
@@ -220,9 +256,73 @@ async function loadQuotePreview(pathValue) {
   return true;
 }
 
+function triggerFileDownload(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+function canSharePdfFile(file) {
+  try {
+    return Boolean(navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
+  } catch {
+    return false;
+  }
+}
+
+async function downloadPdfFile(event) {
+  event?.preventDefault();
+  const pathValue = currentDownloadSrc || sameOriginPath(rawDownload || rawSrc);
+  if (!pathValue || !downloadButton) return;
+
+  const originalLabel = downloadButton.textContent;
+  downloadButton.textContent = 'Preparando PDF...';
+  downloadButton.setAttribute('aria-busy', 'true');
+
+  try {
+    const response = await fetch(pathValue, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Não foi possível preparar o PDF.');
+
+    const blob = await response.blob();
+    const fileName = fileNameFromDisposition(response.headers.get('Content-Disposition')) || suggestedPdfFileName();
+
+    if (window.File) {
+      const file = new File([blob], fileName, { type: blob.type || 'application/pdf' });
+      if (canSharePdfFile(file)) {
+        try {
+          await navigator.share({
+            title: title || 'PDF Quintal do Zé',
+            text: 'Segue o PDF do Quintal do Zé.',
+            files: [file],
+          });
+          return;
+        } catch (shareError) {
+          if (shareError?.name === 'AbortError') return;
+        }
+      }
+    }
+
+    triggerFileDownload(blob, fileName);
+  } catch (error) {
+    alert(error.message || 'Não foi possível baixar o PDF. Tente abrir o PDF e salvar pelo navegador.');
+    if (pathValue) window.open(pathValue, '_blank');
+  } finally {
+    downloadButton.textContent = originalLabel;
+    downloadButton.removeAttribute('aria-busy');
+  }
+}
+
 async function initPdfViewer() {
   const src = sameOriginPath(rawSrc);
   const downloadSrc = sameOriginPath(rawDownload || rawSrc);
+  currentDownloadSrc = downloadSrc;
 
   if (titleElement) titleElement.textContent = title;
   document.getElementById('pdfBackButton')?.addEventListener('click', returnToSystem);
@@ -234,6 +334,10 @@ async function initPdfViewer() {
   }
 
   if (downloadButton) downloadButton.href = downloadSrc;
+  if (downloadButton) {
+    downloadButton.setAttribute('download', suggestedPdfFileName());
+    downloadButton.addEventListener('click', downloadPdfFile);
+  }
   if (fallbackOpen) fallbackOpen.href = src;
 
   try {
