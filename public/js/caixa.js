@@ -73,6 +73,7 @@ async function cash(snapshot = null) {
   const totalOpen = restaurantTotalOpen + eventTotalOpen;
   const showEventsPanel = cashFilter === 'all' || cashFilter === 'events';
   const showRestaurantPanel = cashFilter !== 'events';
+  document.body.classList.toggle('has-mobile-action-bar', Boolean(showRestaurantPanel && groups.length));
   const eventsPanel = showEventsPanel && (eventOrders.length || cashFilter === 'events') ? `
     <section class="panel operation-panel">
       <div class="admin-form-head">
@@ -254,6 +255,7 @@ function durationLabel(minutes) {
 
 async function reports() {
   if (!isAdmin()) return cash();
+  document.body.classList.remove('has-mobile-action-bar');
 
   const [orders, cashSessions, activityLog] = await Promise.all([
     API.get('/api/orders'),

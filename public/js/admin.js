@@ -143,6 +143,7 @@ document.getElementById('sideNav').addEventListener('click', (event) => {
   document.querySelectorAll('nav button').forEach((item) => item.classList.remove('active'));
   button.classList.add('active');
   activeAdminTab = button.dataset.tab || 'users';
+  if (activeAdminTab !== 'cash') document.body.classList.remove('has-mobile-action-bar');
 
   editingUser = null;
   editingProduct = null;
@@ -347,6 +348,7 @@ window.clearTrainingData = async () => {
 
 window.openQuoteForEdit = async (id) => {
   stashEmbeddedAdminFrames();
+  document.body.classList.remove('has-mobile-action-bar');
   document.querySelectorAll('nav button').forEach((item) => item.classList.remove('active'));
   document.querySelector('nav button[data-tab="quotes"]')?.classList.add('active');
   syncNavMenuState();
@@ -2273,6 +2275,7 @@ async function renderCash(snapshot = null) {
   const occupiedTables = allRestaurantGroups.length;
   const showEventsPanel = adminCashFilter === 'all' || adminCashFilter === 'events';
   const showRestaurantPanel = adminCashFilter !== 'events';
+  document.body.classList.toggle('has-mobile-action-bar', Boolean(showRestaurantPanel && groups.length));
   const eventsPanel = showEventsPanel && (eventOrders.length || adminCashFilter === 'events') ? `
     <section class="panel operation-panel">
       <div class="admin-form-head">
@@ -2454,6 +2457,7 @@ function durationLabel(minutes) {
 }
 
 async function renderReports() {
+  document.body.classList.remove('has-mobile-action-bar');
   setText('pageTitle', txt('admin.relatorios.titulo', 'Relatórios'));
   setText('pageSub', txt('admin.relatorios.subtitulo', 'Resumo financeiro e produtos mais vendidos dentro do painel admin.'));
 

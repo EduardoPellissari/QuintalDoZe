@@ -943,6 +943,15 @@ function tableCheckoutPanel(openOrders, selectedTable, scope, closeFunctionName,
         <button class="soft" type="button" onclick="printTableReceipt('${encodedTable(group.table)}', '${scope}')">Pré-conta PDF</button>
         <button class="primary table-close-button" type="button" onclick="${closeFunctionName}('${encodedTable(group.table)}')">Fechar mesa/comanda</button>
       </div>
+
+      <div class="mobile-action-bar cash-mobile-close-bar">
+        <button class="soft mobile-action-secondary" type="button" onclick="printTableReceipt('${encodedTable(group.table)}', '${scope}')">Pré-conta</button>
+        <div>
+          <span>Mesa ${htmlAttr(group.table)}</span>
+          <b>${money(group.subtotal)}</b>
+        </div>
+        <button class="primary" type="button" onclick="${closeFunctionName}('${encodedTable(group.table)}')">Fechar</button>
+      </div>
     </div>
   `;
 }

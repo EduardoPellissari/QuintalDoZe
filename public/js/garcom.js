@@ -528,6 +528,9 @@ function renderCart() {
   if (!element) return;
 
   const total = cart.reduce((sum, item) => sum + itemLineTotal(item), 0);
+  const itemCount = cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const itemLabel = `${itemCount} ${itemCount === 1 ? 'item' : 'itens'}`;
+  document.body.classList.toggle('has-mobile-action-bar', cart.length > 0);
 
   element.innerHTML = `
     <h3>${txt('garcom.itens', 'Itens')}</h3>
@@ -558,7 +561,22 @@ function renderCart() {
       </div>
       <button class="primary" type="submit" ${cart.length ? '' : 'disabled'}>${txt('garcom.enviar', 'Enviar para cozinha')}</button>
     </div>
+
+    ${cart.length ? `
+      <div class="mobile-action-bar waiter-mobile-cart-bar">
+        <button class="soft mobile-action-secondary" type="button" onclick="scrollToCart()">${itemLabel}</button>
+        <div>
+          <span>${txt('garcom.total', 'Total')}</span>
+          <b>${money(total)}</b>
+        </div>
+        <button class="primary" type="submit">Enviar</button>
+      </div>
+    ` : ''}
   `;
+}
+
+function scrollToCart() {
+  document.querySelector('.waiter-order-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function send(event) {
@@ -606,6 +624,7 @@ window.updateCartItem = updateCartItem;
 window.openCustomizeItem = openCustomizeItem;
 window.closeCustomizeItem = closeCustomizeItem;
 window.saveCustomizeItem = saveCustomizeItem;
+window.scrollToCart = scrollToCart;
 
 init();
 setInterval(syncTableSuggestions, 15000);

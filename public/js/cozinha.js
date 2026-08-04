@@ -23,6 +23,7 @@ let urgentNotifiedIds = new Set();
 let kitchenOptionsOpen = false;
 let kitchenRefreshing = false;
 let kitchenRefreshQueued = false;
+let activeKitchenMobileTab = 'pendente';
 
 function playTone(frequency = 880, duration = 180, volume = 0.08) {
   if (!soundEnabled) return;
@@ -200,6 +201,11 @@ function renderKitchenOrders(allOrders) {
   const pendentes = orderByPriority(orders.filter((order) => order.status === 'pendente'));
   const preparando = orderByPriority(orders.filter((order) => order.status === 'preparando'));
   const prontos = orderByPriority(orders.filter((order) => order.status === 'pronto'));
+  const mobileTabs = [
+    { status: 'pendente', label: txt('cozinha.abaNovos', 'Novos pedidos'), short: 'Novos', count: pendentes.length, tone: 'new' },
+    { status: 'preparando', label: txt('cozinha.abaPreparo', 'Em preparo'), short: 'Preparo', count: preparando.length, tone: 'preparing' },
+    { status: 'pronto', label: txt('cozinha.abaProntos', 'Prontos'), short: 'Prontos', count: prontos.length, tone: 'ready' },
+  ];
 
   document.getElementById('content').innerHTML = `
     <section class="kitchen-dashboard kitchen-pro-dashboard">
@@ -220,8 +226,22 @@ function renderKitchenOrders(allOrders) {
         </div>
       </div>
 
+      <div class="kitchen-mobile-tabs" role="tablist" aria-label="Filtrar pedidos da cozinha">
+        ${mobileTabs.map((tab) => `
+          <button
+            type="button"
+            class="kitchen-mobile-tab tone-${tab.tone} ${activeKitchenMobileTab === tab.status ? 'active' : ''}"
+            onclick="setKitchenMobileTab('${tab.status}')"
+            aria-selected="${activeKitchenMobileTab === tab.status ? 'true' : 'false'}"
+          >
+            <span>${tab.short}</span>
+            <b>${tab.count}</b>
+          </button>
+        `).join('')}
+      </div>
+
       <section class="kitchen-board">
-        <div class="kitchen-column kitchen-column-new">
+        <div class="kitchen-column kitchen-column-new ${activeKitchenMobileTab === 'pendente' ? 'mobile-active' : ''}" data-kitchen-tab="pendente">
           <div class="column-header">
             <div>
               <h3>🟡 ${txt('cozinha.abaNovos', 'Novos pedidos')}</h3>
@@ -234,7 +254,7 @@ function renderKitchenOrders(allOrders) {
           </div>
         </div>
 
-        <div class="kitchen-column kitchen-column-preparing">
+        <div class="kitchen-column kitchen-column-preparing ${activeKitchenMobileTab === 'preparando' ? 'mobile-active' : ''}" data-kitchen-tab="preparando">
           <div class="column-header">
             <div>
               <h3>🔵 ${txt('cozinha.abaPreparo', 'Em preparo')}</h3>
@@ -247,7 +267,7 @@ function renderKitchenOrders(allOrders) {
           </div>
         </div>
 
-        <div class="kitchen-column kitchen-column-ready">
+        <div class="kitchen-column kitchen-column-ready ${activeKitchenMobileTab === 'pronto' ? 'mobile-active' : ''}" data-kitchen-tab="pronto">
           <div class="column-header">
             <div>
               <h3>🟢 ${txt('cozinha.abaProntos', 'Prontos')}</h3>
@@ -284,6 +304,11 @@ function renderKitchenOrders(allOrders) {
 
   const closeDayButton = document.getElementById('closeDayBtn');
   if (closeDayButton) closeDayButton.onclick = closeKitchenDay;
+}
+
+function setKitchenMobileTab(status) {
+  activeKitchenMobileTab = status || 'pendente';
+  render();
 }
 
 function emptyColumn(message) {
@@ -425,6 +450,7 @@ async function statusOrder(id, status) {
 }
 
 window.statusOrder = statusOrder;
+window.setKitchenMobileTab = setKitchenMobileTab;
 
 render();
 setInterval(() => {
