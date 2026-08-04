@@ -2015,24 +2015,103 @@ function setupNav(items) {
   if (!nav) return;
 
   const user = currentUser();
+  const visibleItems = items.filter((item) => !item.roles || canAccessRoles(item.roles, user));
+  const hasGroups = visibleItems.some((item) => item.type === 'group');
+  const navEntryHtml = (item) => {
+    const label = item.labelKey ? txt(item.labelKey, item.label || '') : item.label;
 
-  nav.innerHTML = items
-    .filter((item) => !item.roles || canAccessRoles(item.roles, user))
-    .map((item) => {
-      const label = item.labelKey ? txt(item.labelKey, item.label || '') : item.label;
+    if (item.type === 'button') {
+      return `<button type="button" class="${item.active ? 'active' : ''}" data-tab="${item.tab}" data-nav-label="${htmlAttr(label)}">${label}</button>`;
+    }
 
-      if (item.type === 'group') {
-        return `<span class="nav-group">${label}</span>`;
-      }
+    return `<a class="${item.active ? 'active' : ''}" href="${item.href}" data-nav-label="${htmlAttr(label)}">${label}</a>`;
+  };
 
-      if (item.type === 'button') {
-        return `<button type="button" class="${item.active ? 'active' : ''}" data-tab="${item.tab}">${label}</button>`;
-      }
+  if (!hasGroups) {
+    nav.classList.remove('nav-collapsible', 'nav-open');
+    nav.innerHTML = visibleItems.map(navEntryHtml).join('');
+    return;
+  }
 
-      return `<a class="${item.active ? 'active' : ''}" href="${item.href}">${label}</a>`;
-    })
+  const sections = [];
+  let currentSection = null;
+
+  visibleItems.forEach((item) => {
+    if (item.type === 'group') {
+      currentSection = { label: item.label, items: [] };
+      sections.push(currentSection);
+      return;
+    }
+
+    if (!currentSection) {
+      currentSection = { label: 'Menu', items: [] };
+      sections.push(currentSection);
+    }
+
+    currentSection.items.push(item);
+  });
+
+  const sectionsHtml = sections
+    .filter((section) => section.items.length)
+    .map((section) => `
+      <details class="nav-section" open>
+        <summary>${htmlAttr(section.label)}</summary>
+        <div class="nav-section-items">
+          ${section.items.map(navEntryHtml).join('')}
+        </div>
+      </details>
+    `)
     .join('');
+
+  nav.classList.add('nav-collapsible');
+  nav.innerHTML = `
+    <button type="button" class="nav-menu-toggle" aria-expanded="false">
+      <span>Menu do painel</span>
+      <b data-nav-current>Resumo</b>
+    </button>
+    <div class="nav-menu-panel">
+      ${sectionsHtml}
+    </div>
+  `;
+
+  syncNavMenuState(nav);
+
+  if (!nav.dataset.collapsibleBound) {
+    nav.dataset.collapsibleBound = '1';
+    nav.addEventListener('click', (event) => {
+      const toggle = event.target.closest('.nav-menu-toggle');
+      if (toggle) {
+        const willOpen = !nav.classList.contains('nav-open');
+        nav.classList.toggle('nav-open', willOpen);
+        toggle.setAttribute('aria-expanded', String(willOpen));
+        return;
+      }
+
+      if (event.target.closest('[data-tab], a')) {
+        setTimeout(() => {
+          syncNavMenuState(nav);
+          if (document.documentElement.classList.contains('mobile-layout')) {
+            nav.classList.remove('nav-open');
+            nav.querySelector('.nav-menu-toggle')?.setAttribute('aria-expanded', 'false');
+          }
+        }, 0);
+      }
+    });
+  }
 }
+
+function syncNavMenuState(nav = document.getElementById('sideNav')) {
+  if (!nav) return;
+
+  const activeItem = nav.querySelector('[data-nav-label].active');
+  const current = nav.querySelector('[data-nav-current]');
+  if (current && activeItem) current.textContent = activeItem.dataset.navLabel || activeItem.textContent.trim();
+
+  const activeSection = activeItem?.closest('.nav-section');
+  if (activeSection) activeSection.open = true;
+}
+
+window.syncNavMenuState = syncNavMenuState;
 
 function isEmbeddedView() {
   return new URLSearchParams(location.search).get('embed') === '1';

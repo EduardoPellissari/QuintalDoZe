@@ -349,6 +349,7 @@ window.openQuoteForEdit = async (id) => {
   stashEmbeddedAdminFrames();
   document.querySelectorAll('nav button').forEach((item) => item.classList.remove('active'));
   document.querySelector('nav button[data-tab="quotes"]')?.classList.add('active');
+  syncNavMenuState();
   activeAdminTab = 'quotes';
   await window.editQuote(id);
 };
