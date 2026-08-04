@@ -6476,3 +6476,418 @@ html.mobile-layout .cash-session-panel .operation-summary,
 html.mobile-layout .daily-close-panel .compact-head {
   gap:8px;
 }
+
+/* ==================================================
+   MOBILE - legibilidade geral e mais respiro visual
+   ================================================== */
+html.mobile-layout main {
+  font-size:15px;
+  line-height:1.45;
+}
+
+html.mobile-layout h1,
+html.mobile-layout h2,
+html.mobile-layout h3,
+html.mobile-layout h4 {
+  line-height:1.14;
+  letter-spacing:-.025em;
+}
+
+html.mobile-layout p,
+html.mobile-layout small,
+html.mobile-layout .muted,
+html.mobile-layout .topbar p,
+html.mobile-layout .admin-form-head p,
+html.mobile-layout .quote-card p,
+html.mobile-layout .quote-editor-head p,
+html.mobile-layout .dashboard-list-row small,
+html.mobile-layout .quote-preview-help span {
+  line-height:1.48;
+}
+
+html.mobile-layout .grid,
+html.mobile-layout .admin-layout,
+html.mobile-layout .admin-form-grid,
+html.mobile-layout .form-row,
+html.mobile-layout .quote-form-grid,
+html.mobile-layout .quote-items,
+html.mobile-layout .payment-grid,
+html.mobile-layout .event-payment-grid,
+html.mobile-layout .table-checkout-orders,
+html.mobile-layout .event-checkout-list {
+  gap:14px;
+}
+
+html.mobile-layout .panel,
+html.mobile-layout .card,
+html.mobile-layout .admin-form-large,
+html.mobile-layout .admin-list-box,
+html.mobile-layout .quote-editor,
+html.mobile-layout .quote-card,
+html.mobile-layout .cash-block {
+  padding:16px;
+}
+
+html.mobile-layout label {
+  line-height:1.35;
+}
+
+html.mobile-layout input,
+html.mobile-layout textarea,
+html.mobile-layout select {
+  min-height:50px;
+  padding:12px 13px;
+  line-height:1.28;
+}
+
+html.mobile-layout textarea {
+  line-height:1.45;
+}
+
+html.mobile-layout button,
+html.mobile-layout .primary,
+html.mobile-layout .soft,
+html.mobile-layout .danger,
+html.mobile-layout .ghost {
+  line-height:1.2;
+}
+
+html.mobile-layout .primary,
+html.mobile-layout .soft,
+html.mobile-layout .danger,
+html.mobile-layout .ghost,
+html.mobile-layout .compact-action {
+  min-height:46px;
+}
+
+html.mobile-layout .actions,
+html.mobile-layout .form-actions-row,
+html.mobile-layout .dashboard-quick-actions,
+html.mobile-layout .quote-card-actions,
+html.mobile-layout .report-actions {
+  gap:10px;
+}
+
+html.mobile-layout .badge,
+html.mobile-layout .nav-count-badge,
+html.mobile-layout .timer-badge,
+html.mobile-layout .time-chip,
+html.mobile-layout .kitchen-status,
+html.mobile-layout .paid-kitchen-badge,
+html.mobile-layout .quote-kicker,
+html.mobile-layout .quote-preview-hero span,
+html.mobile-layout .quote-preview-meta span,
+html.mobile-layout .quote-preview-chips > span:not(.badge) {
+  line-height:1.2;
+  text-align:center;
+}
+
+html.mobile-layout .badge {
+  gap:5px;
+  max-width:100%;
+  white-space:normal;
+}
+
+html.mobile-layout .dashboard-cards {
+  gap:12px;
+}
+
+html.mobile-layout .dashboard-cards .dash-card {
+  gap:12px;
+  padding:14px;
+  align-items:flex-start;
+}
+
+html.mobile-layout .dashboard-cards .dash-card span {
+  line-height:1.3;
+  overflow-wrap:anywhere;
+}
+
+html.mobile-layout .topbar {
+  gap:10px;
+}
+
+html.mobile-layout .user-pill {
+  align-items:flex-start;
+  gap:10px;
+}
+
+html.mobile-layout .user-pill small,
+html.mobile-layout .logo-row small {
+  line-height:1.35;
+}
+
+html.mobile-layout .table-picker,
+html.mobile-layout .cash-filter-bar,
+html.mobile-layout .operation-simple-summary,
+html.mobile-layout .payment-total,
+html.mobile-layout .table-transfer-box {
+  line-height:1.35;
+}
+
+html.mobile-layout .table-picker-head,
+html.mobile-layout .cash-filter-bar,
+html.mobile-layout .payment-total {
+  align-items:flex-start;
+  gap:10px;
+}
+
+html.mobile-layout .table-picker-head {
+  flex-direction:column;
+}
+
+html.mobile-layout .table-picker-head small,
+html.mobile-layout .table-map-card small,
+html.mobile-layout .table-map-card span,
+html.mobile-layout .table-status-card small,
+html.mobile-layout .payment-total small {
+  line-height:1.38;
+}
+
+html.mobile-layout .table-map-name {
+  gap:4px;
+}
+
+html.mobile-layout .table-map-name b,
+html.mobile-layout .table-map-name em,
+html.mobile-layout .table-map-card span,
+html.mobile-layout .table-map-card small {
+  overflow-wrap:anywhere;
+}
+
+html.mobile-layout .table-checkout-head,
+html.mobile-layout .event-checkout-head {
+  flex-direction:column;
+  align-items:flex-start;
+  gap:10px;
+}
+
+html.mobile-layout .table-checkout-head h3,
+html.mobile-layout .event-checkout-head h3,
+html.mobile-layout .table-checkout-head p,
+html.mobile-layout .event-checkout-head p {
+  overflow-wrap:anywhere;
+}
+
+html.mobile-layout .table-checkout-head > b,
+html.mobile-layout .event-checkout-total b {
+  white-space:normal;
+}
+
+html.mobile-layout .cart-line,
+html.mobile-layout .order-head,
+html.mobile-layout .metric {
+  line-height:1.38;
+}
+
+html.mobile-layout .cart-line > span,
+html.mobile-layout .cart-line small,
+html.mobile-layout .order-head > div,
+html.mobile-layout .order-head span {
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+
+html.mobile-layout .table-checkout .cart-line,
+html.mobile-layout .event-checkout-card .cart-line {
+  grid-template-columns:minmax(0,1fr) max-content;
+  gap:10px;
+}
+
+html.mobile-layout .table-checkout .item-detail-list,
+html.mobile-layout .event-checkout-card .item-detail-list,
+html.mobile-layout .quote-card-items {
+  gap:8px;
+}
+
+html.mobile-layout .item-detail-chip,
+html.mobile-layout .item-detail-line {
+  line-height:1.42;
+}
+
+html.mobile-layout .item-detail-chip {
+  gap:7px;
+  padding:7px 10px;
+  white-space:normal;
+}
+
+html.mobile-layout .item-detail-line {
+  gap:9px;
+  padding:9px 10px;
+}
+
+html.mobile-layout .quote-item-row {
+  gap:12px;
+  padding:14px;
+}
+
+html.mobile-layout .quote-item-row > label {
+  display:grid;
+  gap:6px;
+  margin-top:0;
+}
+
+html.mobile-layout .quote-item-total {
+  gap:10px;
+}
+
+html.mobile-layout .quote-item-total span {
+  line-height:1.25;
+  white-space:normal;
+}
+
+html.mobile-layout .quote-total-box {
+  gap:10px;
+}
+
+html.mobile-layout .quote-card-head,
+html.mobile-layout .quote-preview-items div,
+html.mobile-layout .quote-preview-meta,
+html.mobile-layout .quote-preview-chips {
+  gap:10px;
+}
+
+html.mobile-layout .quote-preview-items div {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) max-content;
+  align-items:start;
+}
+
+html.mobile-layout .quote-preview-items small {
+  grid-column:1 / -1;
+}
+
+html.mobile-layout .quote-preview-items span,
+html.mobile-layout .quote-preview-items small,
+html.mobile-layout .quote-card-items span,
+html.mobile-layout .quote-card-meta span {
+  overflow-wrap:anywhere;
+}
+
+html.mobile-layout .pdv-product-card {
+  min-height:84px;
+}
+
+html.mobile-layout .pdv-product-info {
+  gap:7px;
+}
+
+html.mobile-layout .pdv-product-info b,
+html.mobile-layout .pdv-product-info small,
+html.mobile-layout .pdv-product-bottom {
+  line-height:1.35;
+}
+
+html.mobile-layout .pdv-product-bottom {
+  gap:12px;
+  margin-top:12px;
+}
+
+html.mobile-layout .category-pill,
+html.mobile-layout .table-picker-chip {
+  line-height:1.22;
+}
+
+html.mobile-layout .mobile-action-bar {
+  gap:10px;
+  padding:11px 12px;
+}
+
+html.mobile-layout .mobile-action-bar span {
+  line-height:1.22;
+}
+
+html.mobile-layout .mobile-action-bar b {
+  line-height:1.15;
+}
+
+html.mobile-layout .mobile-action-bar button {
+  min-height:48px;
+}
+
+html.mobile-layout .kitchen-mobile-tabs {
+  gap:9px;
+  margin-bottom:8px;
+}
+
+html.mobile-layout .kitchen-mobile-tab {
+  gap:6px;
+  padding:11px 8px;
+  line-height:1.2;
+}
+
+html.mobile-layout .kitchen-card-top {
+  flex-direction:column;
+  align-items:stretch;
+  gap:11px;
+}
+
+html.mobile-layout .kitchen-card-badges {
+  width:100%;
+  max-width:none;
+  flex-direction:row;
+  align-items:flex-start;
+  justify-content:flex-start;
+  flex-wrap:wrap;
+  gap:7px;
+}
+
+html.mobile-layout .timer-badge,
+html.mobile-layout .paid-kitchen-badge,
+html.mobile-layout .kitchen-status {
+  max-width:100%;
+  white-space:normal;
+}
+
+html.mobile-layout .kitchen-order-heading small {
+  margin-top:8px;
+  line-height:1.2;
+  white-space:normal;
+}
+
+html.mobile-layout .kitchen-meta {
+  gap:8px;
+  margin:14px 0;
+  line-height:1.42;
+}
+
+html.mobile-layout .kitchen-pro-time,
+html.mobile-layout .priority-alert,
+html.mobile-layout .kitchen-notes {
+  line-height:1.42;
+}
+
+html.mobile-layout .kitchen-items {
+  gap:12px;
+}
+
+html.mobile-layout .kitchen-items li {
+  grid-template-columns:auto minmax(0,1fr);
+  gap:8px 12px;
+  padding:12px;
+  line-height:1.42;
+}
+
+html.mobile-layout .kitchen-items li strong {
+  min-width:34px;
+}
+
+html.mobile-layout .kitchen-items li > span,
+html.mobile-layout .kitchen-items .item-detail-chip span,
+html.mobile-layout .kitchen-items .item-detail-line span {
+  overflow-wrap:anywhere;
+}
+
+html.mobile-layout .kitchen-actions.single {
+  gap:10px;
+}
+
+html.mobile-layout .column-header {
+  gap:10px;
+  padding:8px 0;
+}
+
+html.mobile-layout .column-header h3,
+html.mobile-layout .column-header p {
+  line-height:1.28;
+}
