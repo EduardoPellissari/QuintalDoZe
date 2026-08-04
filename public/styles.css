@@ -5163,10 +5163,11 @@ html.mobile-layout main {
   width: 100%;
   min-width: 0;
   padding: 12px;
+  padding-bottom: calc(42px + env(safe-area-inset-bottom));
 }
 
 html.mobile-layout body.has-mobile-action-bar main {
-  padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  padding-bottom: calc(154px + env(safe-area-inset-bottom));
 }
 
 html.mobile-layout .mobile-action-bar {
@@ -5336,7 +5337,7 @@ html.mobile-layout .sidebar {
 html.mobile-layout main {
   padding-left:max(12px, env(safe-area-inset-left));
   padding-right:max(12px, env(safe-area-inset-right));
-  padding-bottom:max(12px, env(safe-area-inset-bottom));
+  padding-bottom:max(42px, env(safe-area-inset-bottom));
 }
 
 html.pwa-standalone body.app-layout {
@@ -6309,12 +6310,17 @@ html.mobile-layout .kitchen-column {
 
 html.mobile-layout .kitchen-column.mobile-active {
   display:block;
+  height:auto;
+  min-height:0;
+  overflow:visible;
+  padding-bottom:18px;
 }
 
 html.mobile-layout .kitchen-column .orders-list {
   max-height:none;
   overflow:visible;
   padding-right:0;
+  padding-bottom:34px;
 }
 
 html.mobile-layout .column-header {
